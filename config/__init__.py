@@ -1,0 +1,2 @@
+# config/__init__.py
+from .constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG
