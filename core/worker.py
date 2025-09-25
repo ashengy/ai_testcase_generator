@@ -24,7 +24,7 @@ class GenerateThread(QThread):
         client = OpenAI(
             # 如果没有配置环境变量，请用百炼API Key替换：api_key="sk-xxx"
             # api_key='sk-xxx',
-            api_key='sk-1c7c69676f2e4d5693643570dccb3960',  #
+            api_key='XXXXX',  #
             base_url='https://api.deepseek.com'
             # base_url="xxxxxx"
         )
