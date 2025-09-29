@@ -1,7 +1,9 @@
 # main.py
 import sys
-from PyQt5.QtWidgets import QApplication
+
 from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QApplication
+
 from ui.main_window import DeepSeekTool
 
 if __name__ == '__main__':
