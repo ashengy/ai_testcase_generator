@@ -20,6 +20,7 @@ class DeepSeekTool(QMainWindow):
         self.context_chunks = []
         self.func_type = None
         self.module_input_pic = None
+        self.api_key = ""  # 添加API Key属性
         self.init_ui()
         self.knowledge_bases = []
         self.current_dir = ""
@@ -47,14 +48,14 @@ class DeepSeekTool(QMainWindow):
         # 创建提示词模式下拉框
         self.param_choice_combo = QComboBox()
         self.param_choice_combo.addItems(["文档", "参数输入"])  # 下拉框选项
-        self.param_choice_combo.setCurrentIndex(0)  # 默认选择“文档”
+        self.param_choice_combo.setCurrentIndex(0)  # 默认选择"文档"
 
         # 功能模式下拉框
         self.func_choice_combo = QComboBox()
         self.func_choice_combo.addItems(["功能测试用例",
                                          "接口测试用例",
                                          ])  # 下拉框选项
-        self.func_choice_combo.setCurrentIndex(0)  # 默认选择“文档”
+        self.func_choice_combo.setCurrentIndex(0)  # 默认选择"文档"
 
         # 用例设计方法多选下拉框
         design_methods = [
@@ -97,10 +98,18 @@ class DeepSeekTool(QMainWindow):
         # 设置默认值为第一个选项
         self.comboBox.setCurrentIndex(0)
         self.btn_refresh = QPushButton("刷新")
+
+        # 添加API Key输入框
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setPlaceholderText("请输入API Key")
+        self.api_key_input.setEchoMode(QLineEdit.Password)  # 密码模式显示
+
         kb_layout.addWidget(QLabel("知识库目录:"))
         kb_layout.addWidget(self.combo_kb)
         kb_layout.addWidget(QLabel("行业:"))
         kb_layout.addWidget(self.comboBox)
+        kb_layout.addWidget(QLabel("API Key:"))
+        kb_layout.addWidget(self.api_key_input)
         kb_layout.addWidget(QLabel("提示词模式:"))
         kb_layout.addWidget(self.param_choice_combo)
         kb_layout.addWidget(QLabel("功能模式:"))
@@ -110,7 +119,6 @@ class DeepSeekTool(QMainWindow):
 
         kb_layout.addWidget(self.btn_add_kb)
         kb_layout.addWidget(self.btn_refresh)
-
         # 文件操作区域
         file_ops_layout = QHBoxLayout()
         self.btn_select_all = QPushButton("全选")
@@ -1126,6 +1134,14 @@ Rules:
             QMessageBox.warning(self, "提示", "内容预览框中无数据，请求大模型终止！")
             return
 
+        # 获取API Key
+        self.api_key = self.api_key_input.text().strip()
+        if not self.api_key:
+            reply = QMessageBox.question(self, "提示", "未输入API Key，将使用默认配置。是否继续？",
+                                         QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+
         # 禁用按钮防止重复点击
         self.generate_btn.setEnabled(False)
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -1133,13 +1149,14 @@ Rules:
         self.func_type = self.func_choice_combo.currentText()
         self.design_method = self.method_combo.get_selected_items_text()
 
-        # 创建异步线程
+        # 创建异步线程，传递API Key
         self.thread = GenerateThread(
             prompt=self.prompt_input.toPlainText(),
             context=self.context,
             job_area=self.job_area,
             func_type=self.func_type,
             design_method=self.design_method,
+            api_key=self.api_key  # 传递API Key
         )
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)

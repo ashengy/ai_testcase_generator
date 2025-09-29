@@ -11,23 +11,22 @@ class GenerateThread(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, prompt, context, job_area, func_type, design_method):
+    def __init__(self, prompt, context, job_area, func_type, design_method, api_key=None):
         super().__init__()
         self.prompt = prompt
         self.context = context
         self.job_area = job_area
         self.func_type = func_type
         self.design_method = design_method
+        self.api_key = api_key  # 添加API Key参数
 
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
         client = OpenAI(
-            # 如果没有配置环境变量，请用百炼API Key替换：api_key="sk-xxx"
-            # api_key='sk-xxx',
-            api_key='XXXXX',  #
+            api_key=self.api_key if self.api_key else 'XXXXX',  # 使用传入的API Key
             base_url='https://api.deepseek.com'
-            # base_url="xxxxxx"
         )
+
         # chunked_context_list = self.chunk_data(self.context, chunk_size=2000)  # 根据需要调整 chunk_size
         all_results = []
         reasoning_content = ""  # 定义完整思考过程
