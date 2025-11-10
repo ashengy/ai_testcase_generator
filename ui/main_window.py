@@ -147,7 +147,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.generate_btn.clicked.connect(self.generate_report)
         self.refresh_prompt_btn.clicked.connect(self.generate_testcase_prompt)
         self.export_btn.clicked.connect(self.export_result)
-
+        self.pushButton_stop_generate.clicked.connect(self.stop_generate)
         # 如果添加了新按钮，在这里添加连接
         # 示例：
         # if hasattr(self, 'new_button'):
@@ -1025,7 +1025,8 @@ Rules:
         self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
-        self.thread.start()
+        if not self.thread.isRunning():
+            self.thread.start()
 
     def on_generation_finished(self, result):
         """ 生成完成处理 """
@@ -1267,3 +1268,14 @@ Rules:
         """
         self.plainTextEdit_update_talking.appendPlainText(data)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End) # 滚动到底部
+
+    def stop_generate(self):
+        print("结束进程")
+        try:
+            if self.thread.isRunning():
+                self.thread.terminate()  # 强制终止
+                self.thread.wait()
+                self.generate_btn.setEnabled(True)
+                self.plainTextEdit_update_talking.clear()
+        except AttributeError as e:
+            print("线程未创建")

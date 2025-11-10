@@ -20,6 +20,7 @@ class GenerateThread(QThread):
         self.func_type = func_type
         self.design_method = design_method
         self.api_key = api_key  # 添加API Key参数
+        self.is_running = True
 
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
@@ -165,3 +166,8 @@ class GenerateThread(QThread):
             self.current_status.emit("----本轮已执行完成！----")
         except Exception as e:
             self.error.emit(str(e))
+
+    # def stop(self):
+    #     """ 请求线程停止 """
+    #     self.is_running = False  # 设置标志位为False
+    #     self.wait()

@@ -31,6 +31,10 @@ def load_stylesheet():
              background-color: #67C23A;
              color: white;
          }
+         QPushButton#pushButton_stop_generate {
+             background-color: #FF0000;
+             color: white;
+         }
          QTextEdit {
              border: 1px solid #DCDFE6;
              border-radius: 4px;
