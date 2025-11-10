@@ -1,0 +1,2 @@
+# 可以打出带有icon的包
+# 终端执行pyinstaller .\Ai-TestCase.spec
