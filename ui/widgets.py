@@ -1,4 +1,6 @@
-# ui/widgets.py
+# ui_test/widgets.py
+import sys
+
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QDialog, QListWidget, QVBoxLayout
 
 

@@ -23,7 +23,7 @@ class GenerateThread(QThread):
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
         client = OpenAI(
-            api_key=self.api_key if self.api_key else 'XXXXX',  # 使用传入的API Key
+            api_key=self.api_key if self.api_key else 'sk-8509fd7dfb9248e49334111e24141d22',  # 使用传入的API Key
             base_url='https://api.deepseek.com'
         )
 

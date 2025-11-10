@@ -1,21 +1,24 @@
-# ui/main_window.py
-from PyQt5.QtCore import Qt
+# ui_test/main.py
+import sys
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt, QUrl, QStandardPaths
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QComboBox, QPushButton, QListWidget, QAbstractItemView,
                              QLineEdit, QTextEdit, QFileDialog, QMessageBox, QListWidgetItem,
                              QApplication)
 from PyQt5.QtGui import QFont
-
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG
 from core.worker import GenerateThread
 from ui.widgets import MultiSelectComboBox
+from ui.ui_deepseektool import Ui_DeepSeekTool
 import json
 import os
 
 
-class DeepSeekTool(QMainWindow):
+class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(self.load_icon("favicon.ico"))
         self.context = None
         self.context_chunks = []
         self.func_type = None
@@ -27,126 +30,102 @@ class DeepSeekTool(QMainWindow):
         self.job_area = None
         self.load_knowledge_bases()
         self.setStyleSheet(self.load_stylesheet())
-
         # 使用从config导入的常量
         self.template_phrases = TEMPLATE_PHRASES
         self.content_filter_fuzzy = CONTENT_FILTER_FUZZY
         self.content_filter_exact = CONTENT_FILTER_EXACT
         self.clean_flag = CLEAN_FLAG
 
+    def _find_widget_in_layout(self, layout, widget):
+        """在布局中查找指定widget的位置"""
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            if item and item.widget() == widget:
+                return i
+        return -1
+
+    def _replace_spacer_with_method_combo(self, layout):
+        """在布局中查找label_method_combo后面的spacerItem并替换为method_combo"""
+        # 尝试查找label（可能是label_method_combo或label_method_combo_spacerItem）
+        label_widget = None
+        if hasattr(self, 'label_method_combo'):
+            label_widget = self.label_method_combo
+        elif hasattr(self, 'label_method_combo_spacerItem'):
+            label_widget = self.label_method_combo_spacerItem
+        
+        if label_widget is None:
+            return False
+            
+        label_index = self._find_widget_in_layout(layout, label_widget)
+        if label_index >= 0:
+            # 查找label后面的spacerItem
+            next_index = label_index + 1
+            if next_index < layout.count():
+                item = layout.itemAt(next_index)
+                if item and item.spacerItem():
+                    # 移除spacerItem
+                    layout.removeItem(item)
+                    # 添加method_combo
+                    design_methods = [
+                        "无",
+                        "等价类划分",
+                        "边界值分析",
+                        "决策表",
+                        "状态转换",
+                        "错误推测",
+                        "场景法",
+                        "因果图测试",
+                        "正交分析法"
+                    ]
+                    self.method_combo = MultiSelectComboBox(design_methods)
+                    self.method_combo.setObjectName("method_combo")
+                    layout.insertWidget(next_index, self.method_combo)
+                    return True
+        return False
+
     def init_ui(self):
         """ 初始化界面 """
-        self.setWindowTitle("测试用例生成工具")
+        self.setupUi(self)
         self.setGeometry(300, 200, 1400, 900)
 
-        # 主控件
-        main_widget = QWidget()
-        self.setCentralWidget(main_widget)
-        layout = QVBoxLayout()
-        main_widget.setLayout(layout)
+        # 按钮别名：如果新UI中已有这些属性则不需要设置
+        if not hasattr(self, 'generate_btn'):
+            self.generate_btn = getattr(self, 'generateButton', None)
+        if not hasattr(self, 'refresh_prompt_btn'):
+            self.refresh_prompt_btn = getattr(self, 'refreshPromptButton', None)
 
-        # 创建提示词模式下拉框
-        self.param_choice_combo = QComboBox()
-        self.param_choice_combo.addItems(["文档", "参数输入"])  # 下拉框选项
-        self.param_choice_combo.setCurrentIndex(0)  # 默认选择"文档"
+        # 自动查找并替换method_combo的占位spacer
+        # 遍历所有布局属性，查找包含label_method_combo的布局
+        method_combo_found = False
+        for attr_name in dir(self):
+            if attr_name.startswith('_'):
+                continue
+            try:
+                attr = getattr(self, attr_name)
+                if isinstance(attr, (QVBoxLayout, QHBoxLayout)):
+                    if self._replace_spacer_with_method_combo(attr):
+                        method_combo_found = True
+                        break
+            except:
+                continue
+        
+        # 如果没找到，尝试直接使用horizontalLayout_1（最常见的布局名）
+        if not method_combo_found and hasattr(self, 'horizontalLayout_1'):
+            if self._replace_spacer_with_method_combo(self.horizontalLayout_1):
+                method_combo_found = True
 
-        # 功能模式下拉框
-        self.func_choice_combo = QComboBox()
-        self.func_choice_combo.addItems(["功能测试用例",
-                                         "接口测试用例",
-                                         ])  # 下拉框选项
-        self.func_choice_combo.setCurrentIndex(0)  # 默认选择"文档"
-
-        # 用例设计方法多选下拉框
-        design_methods = [
-            "无",
-            "等价类划分",
-            "边界值分析",
-            "决策表",
-            "状态转换",
-            "错误推测",
-            "场景法",
-            "因果图测试",
-            "正交分析法"
-        ]
-        self.method_combo = MultiSelectComboBox(design_methods)  # 测试用例设计方法，支持多选
-
-        industries = [
-            "无",
-            "互联网/电子商务",
-            "保险",
-            "金融科技",
-            "医疗健康",
-            "教育科技",
-            "游戏开发",
-            "物联网",
-            "人工智能",
-            "大数据",
-            "云计算",
-            "汽车电子"
-        ]
-
-        # 知识库选择区域
-        kb_layout = QHBoxLayout()
-        self.btn_add_kb = QPushButton("添加知识库")
-        self.combo_kb = QComboBox()
-        # 行业
-        self.comboBox = QComboBox(self)
-        # 将选项添加到 QComboBox
-        self.comboBox.addItems(industries)
+        self.param_choice_combo.setCurrentIndex(0)
+        self.func_choice_combo.setCurrentIndex(0)
         self.comboBox.currentTextChanged.connect(self.updateLabel)
-        # 设置默认值为第一个选项
         self.comboBox.setCurrentIndex(0)
-        self.btn_refresh = QPushButton("刷新")
+        self.api_key_input.setEchoMode(QLineEdit.Password)
 
-        # 添加API Key输入框
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setPlaceholderText("请输入API Key")
-        self.api_key_input.setEchoMode(QLineEdit.Password)  # 密码模式显示
-
-        kb_layout.addWidget(QLabel("知识库目录:"))
-        kb_layout.addWidget(self.combo_kb)
-        kb_layout.addWidget(QLabel("行业:"))
-        kb_layout.addWidget(self.comboBox)
-        kb_layout.addWidget(QLabel("API Key:"))
-        kb_layout.addWidget(self.api_key_input)
-        kb_layout.addWidget(QLabel("提示词模式:"))
-        kb_layout.addWidget(self.param_choice_combo)
-        kb_layout.addWidget(QLabel("功能模式:"))
-        kb_layout.addWidget(self.func_choice_combo)
-        kb_layout.addWidget(QLabel("用例设计:"))
-        kb_layout.addWidget(self.method_combo)
-
-        kb_layout.addWidget(self.btn_add_kb)
-        kb_layout.addWidget(self.btn_refresh)
-        # 文件操作区域
-        file_ops_layout = QHBoxLayout()
-        self.btn_select_all = QPushButton("全选")
-        # self.btn_clean_docx = QPushButton("清洗")
-        self.btn_clear_all = QPushButton("清空")
-        file_ops_layout.addWidget(self.btn_select_all)
-        # file_ops_layout.addWidget(self.btn_clean_docx)
-        file_ops_layout.addWidget(self.btn_clear_all)
-        # 更新提示词
-        self.refresh_prompt_btn = QPushButton("更新提示词")
-        self.refresh_prompt_btn.setObjectName("refreshPromptButton")
-        file_ops_layout.addWidget(self.refresh_prompt_btn)
-        # 生成按钮
-        self.generate_btn = QPushButton("开始推理")
-        self.generate_btn.setObjectName("generateButton")
-        file_ops_layout.addWidget(self.generate_btn)
-        # 文件列表
-        self.file_list = QListWidget()
-        self.file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.file_list.setSortingEnabled(True)
-
-        # 内容预览
-        self.preview_area = QTextEdit()
-        self.preview_area.setFixedHeight(200)
         self.preview_area.setReadOnly(False)
-        # 提示词输入
-        self.prompt_input = QTextEdit()
+        self.preview_area.setFixedHeight(200)
         self.prompt_input.setFixedHeight(300)
+        self.result_area.setFixedHeight(300)
+        self.result_area.setReadOnly(True)
+
         self.prompt_input.setText("Role: 测试用例设计专家\n\n"
                                   "Rules:\n\n"
                                   "设计目标：\n"
@@ -203,74 +182,38 @@ class DeepSeekTool(QMainWindow):
                                   "生成步骤：\n"
                                   "1. 参数建模 → 2. 场景分析 → 3. 用例生成 → 4. 交叉校验")
 
-        # 内容预览
-        self.preview_area = QTextEdit()
-        self.preview_area.setFixedHeight(200)
-        self.preview_area.setReadOnly(False)
+        self.file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.file_list.setSortingEnabled(True)
 
-        # 结果展示
-        self.result_area = QTextEdit()
-        self.result_area.setReadOnly(True)
-        self.result_area.setFixedHeight(300)
+        # 连接信号和槽
+        self._connect_signals()
 
-        # 组装布局
-        layout.addLayout(kb_layout)
-        hbox = QHBoxLayout()
-        hbox.addWidget(QLabel("文本标题:"))
-        self.module_input = QLineEdit()
-        self.module_input.setText("需求背景,功能描述,触发")
-        hbox.addWidget(self.module_input)
-        hbox.addWidget(QLabel("表格标题:"))
-        self.module_input_table = QLineEdit()
-        self.module_input_table.setText("")
-        hbox.addWidget(self.module_input_table)
-        hbox.addWidget(QLabel("图片标题:"))
-        self.module_input_pic = QLineEdit()
-        self.module_input_pic.setText("")
-        hbox.addWidget(self.module_input_pic)
-        layout.addLayout(hbox)
-        layout.addWidget(QLabel("文档列表:"))
-        layout.addLayout(file_ops_layout)
-        layout.addWidget(self.file_list)
-        layout.addWidget(QLabel("内容预览:"))
-        layout.addWidget(self.preview_area)
-        # 底部布局修改
-        bottom_layout = QHBoxLayout()
-        bottom_layout.addWidget(QLabel("提示词:"))
-        bottom_layout.addWidget(self.prompt_input)
-        bottom_layout.addWidget(QLabel("生成结果:"))
-        bottom_layout.addWidget(self.result_area)
+        # 添加按钮悬停时的tips
+        self.refresh_prompt_btn.setToolTip("修改功能模式、设计方法后，需更新提示词")
 
-        # 组装主布局
-        layout.addLayout(bottom_layout)
-
-        # 导出区域
-        export_layout = QHBoxLayout()
-        self.export_combo = QComboBox()
-        self.export_combo.addItems(["Word 文档", "Text 文件", "Markdown", "JSON", "XLSX"])
-        self.export_btn = QPushButton("导出结果")
-        export_layout.addWidget(QLabel("导出格式:"))
-        export_layout.addWidget(self.export_combo)
-        export_layout.addWidget(self.export_btn)
-
-        layout.addLayout(export_layout)
-
-        # 信号连接
+    def _connect_signals(self):
+        """连接所有信号和槽，集中管理，方便添加新按钮"""
+        # 现有按钮连接
         self.btn_add_kb.clicked.connect(self.add_knowledge_base)
         self.btn_refresh.clicked.connect(self.load_knowledge_bases)
         self.combo_kb.currentTextChanged.connect(self.load_directory)
         self.file_list.itemSelectionChanged.connect(self.update_preview)
         self.btn_select_all.clicked.connect(lambda: self.file_list.selectAll())
-        # self.btn_clean_docx.clicked.connect(self.clean_text)  #
         self.btn_clear_all.clicked.connect(lambda: self.file_list.clearSelection())
         self.generate_btn.clicked.connect(self.generate_report)
         self.refresh_prompt_btn.clicked.connect(self.generate_testcase_prompt)
         self.export_btn.clicked.connect(self.export_result)
+        
+        # 如果添加了新按钮，在这里添加连接
+        # 示例：
+        # if hasattr(self, 'new_button'):
+        #     self.new_button.clicked.connect(self.new_button_handler)
 
     def updateLabel(self):
         self.job_area = self.comboBox.currentText()
 
     def generate_testcase_prompt(self, params=None):
+
         """
         生成测试用例设计提示词的智能函数
         生成测试用例设计提示词
@@ -281,12 +224,17 @@ class DeepSeekTool(QMainWindow):
         str - 结构化提示词模板
         """
         # ========== 参数处理模块 ==========
-        method = self.method_combo.get_selected_items_text()
-        method_list = []  # 已选方法列表
-        if method not in ('选择用例设计方法', '无'):
-            method_list = method.split(',')
-        elif method == '选择用例设计方法' or method == '无':
+        # 获取选择的方法，如果method_combo不存在则使用默认值
+        if not hasattr(self, 'method_combo') or self.method_combo is None:
             method = '常用测试用例设计方法'
+            method_list = []
+        else:
+            method = self.method_combo.get_selected_items_text()
+            method_list = []  # 已选方法列表
+            if method not in ('选择用例设计方法', '无'):
+                method_list = method.split(',')
+            elif method == '选择用例设计方法' or method == '无':
+                method = '常用测试用例设计方法'
         parameters = ""
         func_type = self.func_choice_combo.currentText()
         if func_type == '接口测试用例':
@@ -480,16 +428,15 @@ class DeepSeekTool(QMainWindow):
             desc_str = ''
             # ========== 方法选择 ==========
             if len(method_list) >= 1:
-
-                for method in method_list:
-                    selected_method = method_library.get(method, method_library["正交分析法"])
+                for method_item in method_list:
+                    selected_method = method_library.get(method_item.strip(), method_library["正交分析法"])
                     desc_str += f"""
-使用{method}方法设计用例时要符合：{selected_method['desc']}
+使用{method_item.strip()}方法设计用例时要符合：{selected_method['desc']}
 
 关键步骤：
  {chr(10).join([f'{i + 1}. {step}' for i, step in enumerate(selected_method['steps'])])}
 示例：
- {self.generate_example(method)} \n
+ {self.generate_example(method_item.strip())} \n
 
 质量标准：
  - {selected_method['coverage']}
@@ -498,6 +445,14 @@ class DeepSeekTool(QMainWindow):
  - 边界场景用例占比10%
  \n
                     """
+                # 格式化方法名称用于显示
+                if len(method_list) == 1:
+                    method_display = method_list[0].strip()
+                else:
+                    method_display = "、".join([m.strip() for m in method_list])
+            else:
+                method_display = method
+            
             # ========== 生成提示词 ==========
             prompt = f"""
 Role: 测试用例设计专家
@@ -505,7 +460,7 @@ Role: 测试用例设计专家
 Rules:
 
 设计目标：\n
-通过{method}实现：\n
+通过{method_display}实现：\n
 
 用例数量：\n
 尽可能多（不少于15条）\n
@@ -810,12 +765,15 @@ Rules:
     def load_knowledge_bases(self):
         """ 加载知识库历史记录（修改版）"""
         # 测试目录
-        self.knowledge_bases = [
-            r"D:\ai_case"
-        ]
-        self.knowledge_bases = list(set(self.knowledge_bases))
-        self.combo_kb.clear()
-        self.combo_kb.addItems(self.knowledge_bases)
+        # self.knowledge_bases = [
+        #     r"D:\ai_case"
+        # ]
+        # self.knowledge_bases = list(set(self.knowledge_bases))
+        # self.combo_kb.clear()
+        # self.combo_kb.addItems(self.knowledge_bases)
+        if self.combo_kb.currentText():
+            self.combo_kb.clear()
+            self.combo_kb.addItems(self.knowledge_bases)
 
     def save_knowledge_bases(self):
         """持久化存储知识库目录"""
@@ -1223,6 +1181,7 @@ Rules:
     def export_result(self):
         """ 导出结果 """
         if not self.result_area.toPlainText():
+            QMessageBox.warning(self,"提示","暂无导出内容，等待结果生成后导出")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -1290,6 +1249,7 @@ Rules:
             start += chunk_size - overlap
 
         print(f"分块完成，共生成 {len(chunks)} 个块。")
+        print(f"lyw打印chunk：\n{chunks}")
         return chunks
 
     def chunk_json(self, content, max_chunk_size=1000):
@@ -1329,3 +1289,32 @@ Rules:
             chunks.append(current_chunk)
 
         return chunks
+
+    def load_icon(self, icon_name):
+        """
+        智能加载图标，兼容开发环境和打包后环境
+        """
+        # 方法1: 打包后环境 - 资源在临时目录 sys._MEIPASS 中
+        if hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+            icon_path = os.path.join(base_path, 'config', icon_name)
+            if os.path.exists(icon_path):
+                return QtGui.QIcon(icon_path)
+
+        # 方法2: 开发环境 - 尝试多个可能的相对路径
+        possible_paths = [
+            # 当前工作目录下的config文件夹
+            os.path.join('config', icon_name),
+            # 相对于脚本目录的config文件夹
+            os.path.join(os.path.dirname(__file__), 'config', icon_name),
+            # 您原来的路径（ui同级目录的config文件夹）
+            os.path.join(os.path.dirname(__file__), '..', 'config', icon_name),
+        ]
+
+        for icon_path in possible_paths:
+            if os.path.exists(icon_path):
+                return QtGui.QIcon(icon_path)
+
+        # 如果都找不到，输出错误信息（可选）
+        print(f"警告: 未找到图标文件 {icon_name}")
+        return QtGui.QIcon()  # 返回空图标
