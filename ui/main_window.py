@@ -1,18 +1,18 @@
 # ui_test/main.py
-import sys
-from PyQt5 import QtGui
-from PyQt5.QtCore import Qt, QUrl, QStandardPaths
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QComboBox, QPushButton, QListWidget, QAbstractItemView,
-                             QLineEdit, QTextEdit, QFileDialog, QMessageBox, QListWidgetItem,
-                             QApplication)
-from PyQt5.QtGui import QFont
-from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG
-from core.worker import GenerateThread
-from ui.widgets import MultiSelectComboBox
-from ui.ui_deepseektool import Ui_DeepSeekTool
 import json
 import os
+import sys
+
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
+                             QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
+                             QApplication)
+
+from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
+from core.worker import GenerateThread
+from ui.ui_deepseektool import Ui_DeepSeekTool
+from ui.ui_style import load_stylesheet
 
 
 class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
@@ -29,90 +29,31 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.current_dir = ""
         self.job_area = None
         self.load_knowledge_bases()
-        self.setStyleSheet(self.load_stylesheet())
+        self.setStyleSheet(load_stylesheet())
         # 使用从config导入的常量
         self.template_phrases = TEMPLATE_PHRASES
         self.content_filter_fuzzy = CONTENT_FILTER_FUZZY
         self.content_filter_exact = CONTENT_FILTER_EXACT
         self.clean_flag = CLEAN_FLAG
 
-    def _find_widget_in_layout(self, layout, widget):
-        """在布局中查找指定widget的位置"""
-        for i in range(layout.count()):
-            item = layout.itemAt(i)
-            if item and item.widget() == widget:
-                return i
-        return -1
-
-    def _replace_spacer_with_method_combo(self, layout):
-        """在布局中查找label_method_combo后面的spacerItem并替换为method_combo"""
-        # 尝试查找label（可能是label_method_combo或label_method_combo_spacerItem）
-        label_widget = None
-        if hasattr(self, 'label_method_combo'):
-            label_widget = self.label_method_combo
-        elif hasattr(self, 'label_method_combo_spacerItem'):
-            label_widget = self.label_method_combo_spacerItem
-        
-        if label_widget is None:
-            return False
-            
-        label_index = self._find_widget_in_layout(layout, label_widget)
-        if label_index >= 0:
-            # 查找label后面的spacerItem
-            next_index = label_index + 1
-            if next_index < layout.count():
-                item = layout.itemAt(next_index)
-                if item and item.spacerItem():
-                    # 移除spacerItem
-                    layout.removeItem(item)
-                    # 添加method_combo
-                    design_methods = [
-                        "无",
-                        "等价类划分",
-                        "边界值分析",
-                        "决策表",
-                        "状态转换",
-                        "错误推测",
-                        "场景法",
-                        "因果图测试",
-                        "正交分析法"
-                    ]
-                    self.method_combo = MultiSelectComboBox(design_methods)
-                    self.method_combo.setObjectName("method_combo")
-                    layout.insertWidget(next_index, self.method_combo)
-                    return True
-        return False
+        # 设置多选下拉选项为只读
+        self.comboBox_design_method.setEditable(True)
+        self.comboBox_design_method.lineEdit().setReadOnly(True)
+        self.comboBox_design_method.clearEditText()
+        # 初始化自定义多选下拉选项模型
+        self.custom_model = QtGui.QStandardItemModel()
+        self.create_custom_model()
+        self.custom_model.itemChanged.connect(self.reset_combox_text)
 
     def init_ui(self):
         """ 初始化界面 """
         self.setupUi(self)
         self.setGeometry(300, 200, 1400, 900)
-
         # 按钮别名：如果新UI中已有这些属性则不需要设置
         if not hasattr(self, 'generate_btn'):
             self.generate_btn = getattr(self, 'generateButton', None)
         if not hasattr(self, 'refresh_prompt_btn'):
             self.refresh_prompt_btn = getattr(self, 'refreshPromptButton', None)
-
-        # 自动查找并替换method_combo的占位spacer
-        # 遍历所有布局属性，查找包含label_method_combo的布局
-        method_combo_found = False
-        for attr_name in dir(self):
-            if attr_name.startswith('_'):
-                continue
-            try:
-                attr = getattr(self, attr_name)
-                if isinstance(attr, (QVBoxLayout, QHBoxLayout)):
-                    if self._replace_spacer_with_method_combo(attr):
-                        method_combo_found = True
-                        break
-            except:
-                continue
-        
-        # 如果没找到，尝试直接使用horizontalLayout_1（最常见的布局名）
-        if not method_combo_found and hasattr(self, 'horizontalLayout_1'):
-            if self._replace_spacer_with_method_combo(self.horizontalLayout_1):
-                method_combo_found = True
 
         self.param_choice_combo.setCurrentIndex(0)
         self.func_choice_combo.setCurrentIndex(0)
@@ -121,9 +62,6 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
         self.preview_area.setReadOnly(False)
-        self.preview_area.setFixedHeight(200)
-        self.prompt_input.setFixedHeight(300)
-        self.result_area.setFixedHeight(300)
         self.result_area.setReadOnly(True)
 
         self.prompt_input.setText("Role: 测试用例设计专家\n\n"
@@ -203,7 +141,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.generate_btn.clicked.connect(self.generate_report)
         self.refresh_prompt_btn.clicked.connect(self.generate_testcase_prompt)
         self.export_btn.clicked.connect(self.export_result)
-        
+
         # 如果添加了新按钮，在这里添加连接
         # 示例：
         # if hasattr(self, 'new_button'):
@@ -225,16 +163,14 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         """
         # ========== 参数处理模块 ==========
         # 获取选择的方法，如果method_combo不存在则使用默认值
-        if not hasattr(self, 'method_combo') or self.method_combo is None:
+        methods = self.comboBox_design_method.currentText()
+        if methods is None or methods == "":
             method = '常用测试用例设计方法'
             method_list = []
         else:
-            method = self.method_combo.get_selected_items_text()
-            method_list = []  # 已选方法列表
-            if method not in ('选择用例设计方法', '无'):
-                method_list = method.split(',')
-            elif method == '选择用例设计方法' or method == '无':
-                method = '常用测试用例设计方法'
+            method = methods
+            method_list = method.split(',')
+
         parameters = ""
         func_type = self.func_choice_combo.currentText()
         if func_type == '接口测试用例':
@@ -452,7 +388,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
                     method_display = "、".join([m.strip() for m in method_list])
             else:
                 method_display = method
-            
+
             # ========== 生成提示词 ==========
             prompt = f"""
 Role: 测试用例设计专家
@@ -715,42 +651,6 @@ Rules:
     ]"""
         }
         return examples.get(method, "此方法示例未实现")
-
-    def load_stylesheet(self):
-        """加载界面样式表"""
-        return """
-            QMainWindow {
-                background-color: #F0F2F5;
-            }
-            QComboBox, QLineEdit, QListWidget {
-                border: 1px solid #DCDFE6;
-                border-radius: 4px;
-                padding: 5px;
-                min-height: 25px;
-            }
-            QPushButton {
-                background-color: #409EFF;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 15px;
-            }
-            QPushButton:hover {
-                background-color: #66B1FF;
-            }
-            QPushButton#generateButton {
-                background-color: #67C23A;
-            }
-            QPushButton#generateButton:hover {
-                background-color: #85CE61;
-            }
-            QTextEdit {
-                border: 1px solid #DCDFE6;
-                border-radius: 4px;
-                padding: 10px;
-                font-family: Consolas;
-            }
-        """
 
     def add_knowledge_base(self):
         """ 添加知识库目录（修改版）"""
@@ -1181,7 +1081,7 @@ Rules:
     def export_result(self):
         """ 导出结果 """
         if not self.result_area.toPlainText():
-            QMessageBox.warning(self,"提示","暂无导出内容，等待结果生成后导出")
+            QMessageBox.warning(self, "提示", "暂无导出内容，等待结果生成后导出")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -1292,7 +1192,9 @@ Rules:
 
     def load_icon(self, icon_name):
         """
-        智能加载图标，兼容开发环境和打包后环境
+         智能加载图标，兼容开发环境和打包后环境
+        :param icon_name:
+        :return:
         """
         # 方法1: 打包后环境 - 资源在临时目录 sys._MEIPASS 中
         if hasattr(sys, '_MEIPASS'):
@@ -1318,3 +1220,34 @@ Rules:
         # 如果都找不到，输出错误信息（可选）
         print(f"警告: 未找到图标文件 {icon_name}")
         return QtGui.QIcon()  # 返回空图标
+
+    def create_custom_model(self):
+        """
+        创建自定义多选下拉框
+        :return:
+        """
+        for i in design_methods:
+            item = QtGui.QStandardItem(i)
+            item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+            self.custom_model.appendRow(item)
+        self.comboBox_design_method.setModel(self.custom_model)
+        self.comboBox_design_method.setCurrentIndex(-1)
+
+    def reset_combox_text(self):
+        """
+        下拉框勾选有变化时，更新下拉框显示的内容
+        :return:
+        """
+        # 创建一个列表，用于储存已勾选的项
+        checked_list = []
+        for i in range(self.custom_model.rowCount()):
+            if self.custom_model.item(i).checkState() == Qt.CheckState.Checked:
+                # 把项的文本内容 添加到用于储存已勾选的项的列表里
+                checked_list.append(self.custom_model.item(i).text())
+                # 把列表里的内容，显示在下拉框的文本框里，注意只能传入字符串，所以要把列表转化成字符串
+                self.comboBox_design_method.setEditText(",".join(checked_list))
+        # 此处需要增加一个判断，当没有勾选任何项时，设置combox的索引为-1
+        # 因为没有任何选项时，combox的文本框里会随便索引一个内容显示
+        if not checked_list:  # 空列表在布尔表达式会被视为False，非空为True
+            self.comboBox_design_method.setCurrentIndex(-1)

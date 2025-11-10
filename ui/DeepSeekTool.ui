@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1400</width>
+    <width>1310</width>
     <height>905</height>
    </rect>
   </property>
@@ -18,91 +18,10 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_1">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_1">
-        <item>
-         <widget class="QPushButton" name="btn_add_kb">
-          <property name="text">
-           <string>选择需求目录</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="combo_kb"/>
-        </item>
-        <item>
-         <widget class="QLabel" name="label_industry">
-          <property name="text">
-           <string>行业:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="comboBox">
-          <property name="currentText">
-           <string>无</string>
-          </property>
-          <item>
-           <property name="text">
-            <string>无</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>互联网/电子商务</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>保险</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>金融科技</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>医疗健康</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>教育科技</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>游戏开发</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>物联网</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>人工智能</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>大数据</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>云计算</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>汽车电子</string>
-           </property>
-          </item>
-         </widget>
-        </item>
+       <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <property name="topMargin">
+         <number>0</number>
+        </property>
         <item>
          <widget class="QLabel" name="label_api_key">
           <property name="text">
@@ -124,63 +43,14 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="label_param_choice">
-          <property name="text">
-           <string>提示词模式:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="param_choice_combo">
-          <item>
-           <property name="text">
-            <string>文档</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>参数输入</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="label_func_choice">
-          <property name="text">
-           <string>功能模式:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="func_choice_combo">
-          <item>
-           <property name="text">
-            <string>功能测试用例</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>接口测试用例</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="label_method_combo_spacerItem">
-          <property name="text">
-           <string>用例设计:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="method_combo_spacer">
+         <spacer name="horizontalSpacer">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>530</width>
-            <height>13</height>
+            <width>40</width>
+            <height>20</height>
            </size>
           </property>
          </spacer>
@@ -226,18 +96,35 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <layout class="QHBoxLayout" name="horizontalLayout_9" stretch="">
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,8,3,3,3">
+        <item>
+         <widget class="QPushButton" name="btn_add_kb">
+          <property name="text">
+           <string>选择需求目录</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="combo_kb"/>
+        </item>
         <item>
          <widget class="QPushButton" name="btn_refresh">
           <property name="text">
-           <string>刷新需求</string>
+           <string>刷新需求列表</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="btn_select_all">
           <property name="text">
-           <string>全选</string>
+           <string>全选列表</string>
           </property>
          </widget>
         </item>
@@ -248,26 +135,22 @@
           </property>
          </widget>
         </item>
-        <item>
-         <widget class="QPushButton" name="refreshPromptButton">
-          <property name="text">
-           <string>更新提示词</string>
-          </property>
-         </widget>
-        </item>
        </layout>
       </item>
      </layout>
     </item>
     <item>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
+     <layout class="QHBoxLayout" name="horizontalLayout_7" stretch="0,1,0,1">
       <property name="sizeConstraint">
-       <enum>QLayout::SetMaximumSize</enum>
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
       </property>
       <item>
        <widget class="QLabel" name="label_doc_list">
         <property name="text">
-         <string>需求列表</string>
+         <string>需求列表:</string>
         </property>
        </widget>
       </item>
@@ -298,53 +181,206 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,1,0,1">
-      <property name="spacing">
-       <number>6</number>
-      </property>
-      <property name="sizeConstraint">
-       <enum>QLayout::SetFixedSize</enum>
+     <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="1,10,6">
+      <property name="topMargin">
+       <number>0</number>
       </property>
       <item>
-       <widget class="QLabel" name="label_prompt">
+       <widget class="QLabel" name="label_design_method">
         <property name="text">
-         <string>提示词:</string>
+         <string>用例设计方法：</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QTextEdit" name="prompt_input"/>
+       <widget class="QComboBox" name="comboBox_design_method"/>
       </item>
       <item>
-       <widget class="QLabel" name="label_result">
-        <property name="text">
-         <string>生成结果:</string>
+       <spacer name="horizontalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QTextEdit" name="result_area">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
-          <horstretch>2</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="maximumSize">
+        <property name="sizeHint" stdset="0">
          <size>
-          <width>123123</width>
-          <height>16777215</height>
+          <width>40</width>
+          <height>20</height>
          </size>
         </property>
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
+       </spacer>
       </item>
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_21" stretch="0,1,1,1">
+     <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_param_choice">
+        <property name="text">
+         <string>提示词模式:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="param_choice_combo">
+        <item>
+         <property name="text">
+          <string>文档</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>参数输入</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="func_choice_combo">
+        <item>
+         <property name="text">
+          <string>功能测试用例</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>接口测试用例</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_func_choice">
+        <property name="text">
+         <string>功能模式:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="comboBox">
+        <property name="currentText">
+         <string>无</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>无</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>互联网/电子商务</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>保险</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>金融科技</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>医疗健康</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>教育科技</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>游戏开发</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>物联网</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>人工智能</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>大数据</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>云计算</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>汽车电子</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_industry">
+        <property name="text">
+         <string>行业:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="2,2,5,1,3,3">
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QPushButton" name="refreshPromptButton">
+        <property name="text">
+         <string>更新提示词</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="generateButton">
+        <property name="text">
+         <string>开始推理</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_5">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
       <item>
        <widget class="QLabel" name="label_export">
         <property name="text">
@@ -382,16 +418,55 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="generateButton">
+       <widget class="QPushButton" name="export_btn">
         <property name="text">
-         <string>开始推理</string>
+         <string>导出结果</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,1,0,1">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <item>
+       <widget class="QLabel" name="label_prompt">
+        <property name="text">
+         <string>提示词库:</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="export_btn">
+       <widget class="QTextEdit" name="prompt_input"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_result">
         <property name="text">
-         <string>导出结果</string>
+         <string>生成结果:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QTextEdit" name="result_area">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+          <horstretch>2</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>123123</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="readOnly">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -405,7 +480,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1400</width>
+     <width>1310</width>
      <height>23</height>
     </rect>
    </property>
