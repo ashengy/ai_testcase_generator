@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_DeepSeekTool(object):
     def setupUi(self, DeepSeekTool):
         DeepSeekTool.setObjectName("DeepSeekTool")
-        DeepSeekTool.resize(1310, 905)
+        DeepSeekTool.resize(1375, 1051)
         self.centralwidget = QtWidgets.QWidget(DeepSeekTool)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -218,12 +218,15 @@ class Ui_DeepSeekTool(object):
         self.horizontalLayout.setStretch(1, 1)
         self.horizontalLayout.setStretch(3, 1)
         self.verticalLayout_3.addLayout(self.horizontalLayout)
+        self.plainTextEdit_update_talking = QtWidgets.QPlainTextEdit(self.centralwidget)
+        self.plainTextEdit_update_talking.setObjectName("plainTextEdit_update_talking")
+        self.verticalLayout_3.addWidget(self.plainTextEdit_update_talking)
         DeepSeekTool.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(DeepSeekTool)
         self.statusbar.setObjectName("statusbar")
         DeepSeekTool.setStatusBar(self.statusbar)
         self.menubar = QtWidgets.QMenuBar(DeepSeekTool)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1310, 23))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1375, 23))
         self.menubar.setObjectName("menubar")
         DeepSeekTool.setMenuBar(self.menubar)
 

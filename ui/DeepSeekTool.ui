@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1310</width>
-    <height>905</height>
+    <width>1375</width>
+    <height>1051</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -472,6 +472,9 @@
       </item>
      </layout>
     </item>
+    <item>
+     <widget class="QPlainTextEdit" name="plainTextEdit_update_talking"/>
+    </item>
    </layout>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -480,7 +483,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1310</width>
+     <width>1375</width>
      <height>23</height>
     </rect>
    </property>

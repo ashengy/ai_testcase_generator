@@ -9,6 +9,7 @@ from openai import OpenAI
 class GenerateThread(QThread):
     """异步生成线程"""
     finished = pyqtSignal(str)
+    current_status = pyqtSignal(str)
     error = pyqtSignal(str)
 
     def __init__(self, prompt, context, job_area, func_type, design_method, api_key=None):
@@ -84,6 +85,8 @@ class GenerateThread(QThread):
                     # 打印回复过程
                     print(delta.content, end='', flush=True)
                     answer_content += delta.content
+                    self.current_status.emit(f"\n{answer_content}\n")
+
         return answer_content
 
     def extract_json_objects(self, text):
@@ -131,20 +134,24 @@ class GenerateThread(QThread):
             return json.dumps(data, indent=2, ensure_ascii=False) if not isinstance(data, str) else data
 
     def run(self):
+        self.current_status.emit(f"----开始生成测试用例...----\n")
         try:
             all_result_str = ""
             for n, context_chunk in enumerate(self.context):
                 print(f"第{n + 1}段")
                 result = self.generate_cases(context_chunk)
                 print(f"第{n + 1}次请求，结果为{result}")
+                # self.current_status.emit(f"\n----执行第{n + 1}段，结果为{result}----\n")
                 if result is not None and isinstance(result, str):
                     all_result_str += result
                 else:
                     print(f"{context_chunk}推理结果异常！")
 
             print("---------------汇总数据开始打印-------------")
+            self.current_status.emit("----汇总数据开始打印----")
             print(f"多次请求后的汇总数据：{all_result_str}")
             print("--------------汇总数据打印结束--------------")
+            self.current_status.emit("----汇总数据打印结束----")
 
             if 'json' in all_result_str:
                 all_result_str = self.extract_json_objects(all_result_str)
@@ -155,5 +162,6 @@ class GenerateThread(QThread):
                 print("----------------------------")
 
             self.finished.emit(all_result_str if isinstance(all_result_str, str) else str(all_result_str))
+            self.current_status.emit("----本轮已执行完成！----")
         except Exception as e:
             self.error.emit(str(e))

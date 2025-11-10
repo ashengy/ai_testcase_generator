@@ -5,6 +5,7 @@ import sys
 
 from PyQt5 import QtGui
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
                              QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
                              QApplication)
@@ -63,6 +64,11 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         self.preview_area.setReadOnly(False)
         self.result_area.setReadOnly(True)
+
+        self.plainTextEdit_update_talking.setReadOnly(True)
+        self.plainTextEdit_update_talking.setEnabled(True)
+        self.plainTextEdit_update_talking.document().setMaximumBlockCount(1000)
+        self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
         self.prompt_input.setText("Role: 测试用例设计专家\n\n"
                                   "Rules:\n\n"
@@ -162,7 +168,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         str - 结构化提示词模板
         """
         # ========== 参数处理模块 ==========
-        # 获取选择的方法，如果method_combo不存在则使用默认值
+        # 获取选择的方法，如果未选择方法则使用默认值
         methods = self.comboBox_design_method.currentText()
         if methods is None or methods == "":
             method = '常用测试用例设计方法'
@@ -981,6 +987,7 @@ Rules:
             return {}
 
     def generate_report(self):
+        self.plainTextEdit_update_talking.clear()
         """ 生成分析报告 """
         if not self.prompt_input.toPlainText().strip():
             QMessageBox.warning(self, "提示", "请输入提示词！")
@@ -1005,7 +1012,6 @@ Rules:
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.job_area = self.comboBox.currentText()
         self.func_type = self.func_choice_combo.currentText()
-        self.design_method = self.method_combo.get_selected_items_text()
 
         # 创建异步线程，传递API Key
         self.thread = GenerateThread(
@@ -1013,9 +1019,10 @@ Rules:
             context=self.context,
             job_area=self.job_area,
             func_type=self.func_type,
-            design_method=self.design_method,
+            design_method=self.comboBox_design_method.currentText(),
             api_key=self.api_key  # 传递API Key
         )
+        self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
         self.thread.start()
@@ -1251,3 +1258,12 @@ Rules:
         # 因为没有任何选项时，combox的文本框里会随便索引一个内容显示
         if not checked_list:  # 空列表在布尔表达式会被视为False，非空为True
             self.comboBox_design_method.setCurrentIndex(-1)
+
+    def update_talking(self,data):
+        """
+        输出对话过程
+        :param data:
+        :return:
+        """
+        self.plainTextEdit_update_talking.appendPlainText(data)
+        self.plainTextEdit_update_talking.moveCursor(QTextCursor.End) # 滚动到底部
