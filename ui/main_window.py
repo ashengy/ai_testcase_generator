@@ -1277,5 +1277,6 @@ Rules:
                 self.thread.wait()
                 self.generate_btn.setEnabled(True)
                 self.plainTextEdit_update_talking.clear()
+                QApplication.restoreOverrideCursor() # 停止鼠标转圈
         except AttributeError as e:
             print("线程未创建")
