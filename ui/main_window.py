@@ -4,11 +4,11 @@ import os
 import sys
 
 from PyQt5 import QtGui
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt,QSettings
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
                              QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
-                             QApplication)
+                             QApplication, QCheckBox)
 
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
 from core.worker import GenerateThread
@@ -20,6 +20,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
     def __init__(self):
         super().__init__()
         self.setWindowIcon(self.load_icon("favicon.ico"))
+        # 初始化设置类
+        self.settings = QSettings("soc","Ai-Testcase")
         self.context = None
         self.context_chunks = []
         self.func_type = None
@@ -29,7 +31,6 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.knowledge_bases = []
         self.current_dir = ""
         self.job_area = None
-        self.load_knowledge_bases()
         self.setStyleSheet(load_stylesheet())
         # 使用从config导入的常量
         self.template_phrases = TEMPLATE_PHRASES
@@ -62,7 +63,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.comboBox.setCurrentIndex(0)
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
-        self.preview_area.setReadOnly(False)
+        # self.preview_area.setReadOnly(False)
         self.result_area.setReadOnly(True)
 
         self.plainTextEdit_update_talking.setReadOnly(True)
@@ -70,6 +71,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.plainTextEdit_update_talking.document().setMaximumBlockCount(1000)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
+        # 窗口初始化时加载设置保存路径
+        self.load_saved_paths()
         self.prompt_input.setText("Role: 测试用例设计专家\n\n"
                                   "Rules:\n\n"
                                   "设计目标：\n"
@@ -139,7 +142,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         """连接所有信号和槽，集中管理，方便添加新按钮"""
         # 现有按钮连接
         self.btn_add_kb.clicked.connect(self.add_knowledge_base)
-        self.btn_refresh.clicked.connect(self.load_knowledge_bases)
+        self.btn_refresh.clicked.connect(self.load_saved_paths)
         self.combo_kb.currentTextChanged.connect(self.load_directory)
         self.file_list.itemSelectionChanged.connect(self.update_preview)
         self.btn_select_all.clicked.connect(lambda: self.file_list.selectAll())
@@ -148,6 +151,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.refresh_prompt_btn.clicked.connect(self.generate_testcase_prompt)
         self.export_btn.clicked.connect(self.export_result)
         self.pushButton_stop_generate.clicked.connect(self.stop_generate)
+        self.pushButton_clear_history_path.clicked.connect(self.clear_directory_to_combox)
         # 如果添加了新按钮，在这里添加连接
         # 示例：
         # if hasattr(self, 'new_button'):
@@ -662,28 +666,10 @@ Rules:
         """ 添加知识库目录（修改版）"""
         directory = QFileDialog.getExistingDirectory(self, "选择知识库目录")
         if directory:
-            if directory not in self.knowledge_bases:
-                self.knowledge_bases.append(directory)
-                self.combo_kb.addItem(directory)
-                self.combo_kb.setCurrentText(directory)
-                self.save_knowledge_bases()  # 新增持久化存储
+            if directory not in self.get_current_knowledge_paths():
+                self.add_directory_to_combox(directory)
+                self.save_paths_to_config()# 新增持久化存储
 
-    def load_knowledge_bases(self):
-        """ 加载知识库历史记录（修改版）"""
-        # 测试目录
-        # self.knowledge_bases = [
-        #     r"D:\ai_case"
-        # ]
-        # self.knowledge_bases = list(set(self.knowledge_bases))
-        # self.combo_kb.clear()
-        # self.combo_kb.addItems(self.knowledge_bases)
-        if self.combo_kb.currentText():
-            self.combo_kb.clear()
-            self.combo_kb.addItems(self.knowledge_bases)
-
-    def save_knowledge_bases(self):
-        """持久化存储知识库目录"""
-        pass
 
     def load_directory(self, directory):
         """ 加载目录文件（修正版）"""
@@ -710,7 +696,6 @@ Rules:
 
             # 添加数量提示
             self.statusBar().showMessage(f"已加载 {self.file_list.count()} 个文档", 3000)
-
         except Exception as e:
             QMessageBox.critical(self, "加载错误", str(e))
 
@@ -993,6 +978,7 @@ Rules:
             QMessageBox.warning(self, "提示", "请输入提示词！")
             return
         context = self.preview_area.toPlainText()
+        print("看看需求,",context)
         if not self.context and context:
             self.context = self.chunk_text(context)  # 如果没有分块，则在此对预览框中的文本进行分块
         if not context:
@@ -1038,12 +1024,14 @@ Rules:
         else:
             self.result_area.setText(str(result))
         self.generate_btn.setEnabled(True)
+        self.generateButton.setText("开始推理")
         QApplication.restoreOverrideCursor()
 
     def on_generation_error(self, error_msg):
         """ 错误处理 """
         QMessageBox.critical(self, "生成错误", f"模型调用失败:\n{error_msg}")
         self.generate_btn.setEnabled(True)
+        self.generateButton.setText("开始推理")
         QApplication.restoreOverrideCursor()
 
     def json_to_excel(self, json_data, output_file):
@@ -1285,3 +1273,43 @@ Rules:
         finally:
             if self.generateButton.text() == "推理中...":
                 self.generateButton.setText("开始推理")
+
+    def get_current_knowledge_paths(self):
+        all_items_text = []  # 创建一个空列表来存储所有项的文本
+        if self.combo_kb.count() > 0:
+            for i in range(self.combo_kb.count()):
+                item_text = self.combo_kb.itemText(i)
+                all_items_text.append(item_text)
+        return all_items_text
+
+    def save_paths_to_config(self):
+        """将当前选中的路径列表保存到配置"""
+        # 获取所有知识库路径
+        all_items_text = self.get_current_knowledge_paths()
+        print("打印知识库目录:",all_items_text)
+        # 使用QSettings保存列表
+        self.settings.setValue("saved_directories", all_items_text)
+
+    def load_saved_paths(self):
+        """从配置加载之前保存的路径并添加到界面"""
+        saved_paths = self.settings.value("saved_directories", [])
+        print("读取saved_paths",saved_paths)
+        # 注意：QSettings读取的列表可能是QStringList，确保转换为Python list of strings
+        if isinstance(saved_paths, str):
+            saved_paths = [saved_paths]  # 如果只有一个路径，它可能是字符串
+        for path in saved_paths:
+            self.add_directory_to_combox(path) # 把目录添加到combox里
+        self.load_directory(self.combo_kb.currentText())
+
+    def add_directory_to_combox(self, path):
+        """历史将知识库目录添加到combox中"""
+        all_items_text = self.get_current_knowledge_paths()
+        if path not in all_items_text:
+            self.combo_kb.addItem(path)
+            self.combo_kb.setCurrentText(path)
+
+    def clear_directory_to_combox(self):
+        # 清空setting里存储的saved_directories，设置为空列表就行
+        self.settings.setValue("saved_directories", [])
+        self.combo_kb.clear() # 重新设置combox
+
