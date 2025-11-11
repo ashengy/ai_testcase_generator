@@ -1027,6 +1027,8 @@ Rules:
         self.thread.error.connect(self.on_generation_error)
         if not self.thread.isRunning():
             self.thread.start()
+            if self.generateButton.text() == "开始推理":
+                self.generateButton.setText("推理中...")
 
     def on_generation_finished(self, result):
         """ 生成完成处理 """
@@ -1280,3 +1282,6 @@ Rules:
                 QApplication.restoreOverrideCursor() # 停止鼠标转圈
         except AttributeError as e:
             print("线程未创建")
+        finally:
+            if self.generateButton.text() == "推理中...":
+                self.generateButton.setText("开始推理")
