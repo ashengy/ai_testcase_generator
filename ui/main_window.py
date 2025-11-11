@@ -63,7 +63,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.comboBox.setCurrentIndex(0)
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
-        # self.preview_area.setReadOnly(False)
+        self.preview_area.setReadOnly(True)
         self.result_area.setReadOnly(True)
 
         self.plainTextEdit_update_talking.setReadOnly(True)
@@ -978,7 +978,6 @@ Rules:
             QMessageBox.warning(self, "提示", "请输入提示词！")
             return
         context = self.preview_area.toPlainText()
-        print("看看需求,",context)
         if not self.context and context:
             self.context = self.chunk_text(context)  # 如果没有分块，则在此对预览框中的文本进行分块
         if not context:
