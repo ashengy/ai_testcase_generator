@@ -5,6 +5,9 @@ import re
 from PyQt5.QtCore import QThread, pyqtSignal
 from openai import OpenAI
 
+from core.pdf_image_ai_analyzer import PDFImageAIAnalyzer
+from core.pdf_image_replace import extract_pdf_text_with_image_list
+from core.utils import chunk_text
 
 class GenerateThread(QThread):
     """异步生成线程"""
@@ -12,15 +15,17 @@ class GenerateThread(QThread):
     current_status = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, prompt, context, job_area, func_type, design_method, api_key=None):
+    def __init__(self, prompt, job_area, func_type, design_method, image_api_key, pdf_path, batch_delay, analyzer_enable: bool, api_key=None, ):
         super().__init__()
         self.prompt = prompt
-        self.context = context
         self.job_area = job_area
         self.func_type = func_type
         self.design_method = design_method
         self.api_key = api_key  # 添加API Key参数
-        self.is_running = True
+        self.image_api_key = image_api_key
+        self.pdf_path = pdf_path
+        self.batch_delay = batch_delay
+        self.analyzer_enable = analyzer_enable
 
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
@@ -36,7 +41,7 @@ class GenerateThread(QThread):
         is_answering = False  # 判断是否结束思考过程并开始回复
 
         # 创建聊天完成请求
-        print("开始执行.........")
+        print("开始跟AI进行会话.........")
         completion = client.chat.completions.create(
             model="deepseek-chat",  # 此处以 deepseek-r1 为例，可按需更换模型名称
             # model="qwen3-235b-a22b-instruct-2507",  # 此处以 deepseek-r1 为例，可按需更换模型名称
@@ -134,25 +139,71 @@ class GenerateThread(QThread):
             print(f"reformat_test_cases处理出错: {e}")
             return json.dumps(data, indent=2, ensure_ascii=False) if not isinstance(data, str) else data
 
+    def pdf_image_analyzer(self):
+        print("启动pdf_image_analyzer",flush=True)
+
+        try:
+            # 根据开关判断是否使用ai图片分析
+            if self.analyzer_enable:
+                self.current_status.emit(f"----开始启动AI分析图片...----\n")
+                analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
+                replacements = analyzer.process_pdf_images(self.pdf_path, batch_delay=self.batch_delay)
+                self.current_status.emit(f"图片分析结果:\n{replacements}\n")
+            else:
+                # 不使用ai分析直接返回空列表(已在extract_pdf_text_with_image_list兼容了有图片但是传入列表为空的情况）
+                replacements = []
+            # 传入要替换的图片文字结果的列表
+            pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
+                                                           image_replacement_list=replacements
+                                                           )
+            print("pdf_context是",pdf_context,flush=True)
+
+            return pdf_context
+        except Exception as e:
+            self.error.emit(f"pdf_image_analyzer运行异常：{e}")
+
+    def chunk_text(self, text, chunk_size=3000, overlap=300):
+        """
+        将文本按固定长度分块，同时添加滑动窗口重叠。
+
+        参数：
+        - text (str): 输入的长文本内容
+        - chunk_size (int): 每块的最大字符数
+        - overlap (int): 相邻块的重叠字符数
+
+        返回：
+        - list: 分块后的文本列表
+        """
+        # print("开始对文本进行分块：",text)
+        chunks = []
+        start = 0
+        text_length = len(text)
+
+        while start < text_length:
+            end = min(start + chunk_size, text_length)
+            chunk = text[start:end]
+            chunks.append(chunk)
+            # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
+            start += chunk_size - overlap
+
+        print(f"分块完成，共生成 {len(chunks)} 个块。")
+        return chunks
+
     def run(self):
+        pdf_context = self.pdf_image_analyzer()
         self.current_status.emit(f"----开始生成测试用例...----\n")
+        self.context = chunk_text(pdf_context)
+        self.current_status.emit(f"替换后的文档内容:\n{self.context}\n")
+        print("self.context是",self.context)
         try:
             all_result_str = ""
             for n, context_chunk in enumerate(self.context):
-                print(f"第{n + 1}段")
                 result = self.generate_cases(context_chunk)
                 print(f"第{n + 1}次请求，结果为{result}")
-                # self.current_status.emit(f"\n----执行第{n + 1}段，结果为{result}----\n")
                 if result is not None and isinstance(result, str):
                     all_result_str += result
                 else:
                     print(f"{context_chunk}推理结果异常！")
-
-            print("---------------汇总数据开始打印-------------")
-            self.current_status.emit("----汇总数据开始打印----")
-            print(f"多次请求后的汇总数据：{all_result_str}")
-            print("--------------汇总数据打印结束--------------")
-            self.current_status.emit("----汇总数据打印结束----")
 
             if 'json' in all_result_str:
                 all_result_str = self.extract_json_objects(all_result_str)
@@ -166,8 +217,3 @@ class GenerateThread(QThread):
             self.current_status.emit("----本轮已执行完成！----")
         except Exception as e:
             self.error.emit(str(e))
-
-    # def stop(self):
-    #     """ 请求线程停止 """
-    #     self.is_running = False  # 设置标志位为False
-    #     self.wait()

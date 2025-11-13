@@ -4,13 +4,15 @@ import os
 import sys
 
 from PyQt5 import QtGui
-from PyQt5.QtCore import Qt,QSettings
+from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
                              QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
-                             QApplication, QCheckBox)
+                             QApplication)
 
+import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
+from core.utils import chunk_text
 from core.worker import GenerateThread
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
@@ -21,12 +23,13 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         super().__init__()
         self.setWindowIcon(self.load_icon("favicon.ico"))
         # 初始化设置类
-        self.settings = QSettings("soc","Ai-Testcase")
+        self.settings = QSettings("soc", "Ai-Testcase")
         self.context = None
         self.context_chunks = []
         self.func_type = None
         self.module_input_pic = None
         self.api_key = ""  # 添加API Key属性
+        self.image_api_key = ""
         self.init_ui()
         self.knowledge_bases = []
         self.current_dir = ""
@@ -68,7 +71,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         self.plainTextEdit_update_talking.setReadOnly(True)
         self.plainTextEdit_update_talking.setEnabled(True)
-        self.plainTextEdit_update_talking.document().setMaximumBlockCount(1000)
+        self.plainTextEdit_update_talking.document().setMaximumBlockCount(3000)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
         # 窗口初始化时加载设置保存路径
@@ -668,8 +671,7 @@ Rules:
         if directory:
             if directory not in self.get_current_knowledge_paths():
                 self.add_directory_to_combox(directory)
-                self.save_paths_to_config()# 新增持久化存储
-
+                self.save_paths_to_config()  # 新增持久化存储
 
     def load_directory(self, directory):
         """ 加载目录文件（修正版）"""
@@ -703,14 +705,11 @@ Rules:
         """ 更新预览内容 """
         # self.preview_area.clear()
         print(f"self.file_list.selectedItems():{self.file_list.selectedItems()}")
-        selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
+        self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
         content = []
         all_content = ''
-        for path in selected:
+        for path in self.selected:
             raw_text = self.read_file(path)
-            print(f"raw_textraw_text:{raw_text}")
-            print(f"1221123123213213:{self.module_input.text()}")
-
             # 根据文件类型处理内容
             if path.endswith('docx'):
                 if not self.module_input.text():  # 未获取到文本标签，则使用默认清洗规则
@@ -725,7 +724,7 @@ Rules:
                 content.append(raw_text)
 
         # 根据文件类型更新预览内容
-        for path in selected:
+        for path in self.selected:
             if path.endswith('docx'):
                 if not self.module_input.text() and path.endswith('docx'):  # 不指定，使用默认配置进行清洗
                     for ele in content:
@@ -733,7 +732,7 @@ Rules:
                             all_content += "\n".join(ele["paragraphs"])
                         else:
                             all_content += str(ele)
-                    self.context = self.chunk_text(all_content)  # 不输入文本标题时，也对文本进行分块
+                    self.context = chunk_text(all_content)  # 不输入文本标题时，也对文本进行分块
                 elif self.module_input.text() and path.endswith('docx'):  # 指定标题获取文档内容
                     try:
                         for ele in content:
@@ -741,7 +740,7 @@ Rules:
                                 paragraph = ele['paragraphs']
                                 for key, value in paragraph.items():
                                     all_content += f'{str(value)} \n'  # 获取指定标题内容
-                        self.context = self.chunk_text(all_content)
+                        self.context = chunk_text(all_content)
                     except Exception as e:
                         QMessageBox.critical(self, "预览", f"更新预览内容失败，错误信息{e}！")
             elif path.endswith('.pdf'):
@@ -753,7 +752,7 @@ Rules:
                             all_content += str(paragraph) + "\n"
                     else:
                         all_content += str(ele)
-                self.context = self.chunk_text(all_content)
+                self.context = chunk_text(all_content)
             elif path.split('.')[-1].lower() in ('txt', 'xlsx', 'md'):
                 if isinstance(content, list) and len(content) > 0:
                     if isinstance(content[0], dict) and "paragraphs" in content[0]:
@@ -765,7 +764,7 @@ Rules:
                     all_content = content[0].get('paragraphs', '获取内容失败') if isinstance(content[0], dict) else str(
                         content[0])
                     self.context = self.chunk_json(all_content) if isinstance(all_content,
-                                                                              (dict, list)) else self.chunk_text(
+                                                                              (dict, list)) else chunk_text(
                         str(all_content))
                     all_content = json.dumps(all_content, indent=4, ensure_ascii=False) if isinstance(all_content, (
                         dict, list)) else str(all_content)
@@ -972,39 +971,53 @@ Rules:
             return {}
 
     def generate_report(self):
-        self.plainTextEdit_update_talking.clear()
+        self.plainTextEdit_update_talking.clear()  # 清空上一次的AI回复对话框展示内容
         """ 生成分析报告 """
         if not self.prompt_input.toPlainText().strip():
             QMessageBox.warning(self, "提示", "请输入提示词！")
             return
         context = self.preview_area.toPlainText()
-        if not self.context and context:
-            self.context = self.chunk_text(context)  # 如果没有分块，则在此对预览框中的文本进行分块
         if not context:
             QMessageBox.warning(self, "提示", "内容预览框中无数据，请求大模型终止！")
             return
 
+        self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
+        pdf_path = self.selected[0]
         # 获取API Key
         self.api_key = self.api_key_input.text().strip()
         if not self.api_key:
-            reply = QMessageBox.question(self, "提示", "未输入API Key，将使用默认配置。是否继续？",
+            reply = QMessageBox.question(self, "提示", "未输入deepseek API Key，将使用默认配置。是否继续？",
                                          QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.No:
                 return
+
+        # 获取image API Key
+        self.image_api_key = self.lineEdit_image_api_key.text().strip()
+        if not self.image_api_key:
+            reply = QMessageBox.question(self, "提示", "未输入通义千问 API Key，将使用默认配置。是否继续？",
+                                         QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+            elif reply == QMessageBox.Yes:
+                self.lineEdit_image_api_key.setText(config.constants.IMAGE_API_KEY)
 
         # 禁用按钮防止重复点击
         self.generate_btn.setEnabled(False)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.job_area = self.comboBox.currentText()
         self.func_type = self.func_choice_combo.currentText()
-
+        self.analyzer_enable = self.checkBox_analyzer_enable.isChecked()
+        print("查看self.analyzer_enable", self.analyzer_enable)
         # 创建异步线程，传递API Key
         self.thread = GenerateThread(
             prompt=self.prompt_input.toPlainText(),
-            context=self.context,
             job_area=self.job_area,
             func_type=self.func_type,
             design_method=self.comboBox_design_method.currentText(),
+            image_api_key=config.constants.IMAGE_API_KEY,
+            pdf_path=pdf_path,
+            batch_delay=1.0,
+            analyzer_enable=self.analyzer_enable,
             api_key=self.api_key  # 传递API Key
         )
         self.thread.current_status.connect(self.update_talking)
@@ -1016,7 +1029,7 @@ Rules:
                 self.generateButton.setText("推理中...")
 
     def on_generation_finished(self, result):
-        """ 生成完成处理 """
+        """ 根据AI回答的内容，显示到结果组件中，修改相关组件状态 """
         # 确保结果显示为字符串
         if isinstance(result, (dict, list)):
             self.result_area.setText(json.dumps(result, indent=2, ensure_ascii=False))
@@ -1120,7 +1133,7 @@ Rules:
             4: "Excel Files (*.xlsx)"
         }[index]
 
-    def chunk_text(self, text, chunk_size=1000, overlap=200):
+    def chunk_text(self, text, chunk_size=3000, overlap=300):
         """
         将文本按固定长度分块，同时添加滑动窗口重叠。
 
@@ -1132,7 +1145,7 @@ Rules:
         返回：
         - list: 分块后的文本列表
         """
-        print("开始对文本进行分块")
+        # print("开始对文本进行分块：",text)
         chunks = []
         start = 0
         text_length = len(text)
@@ -1141,12 +1154,10 @@ Rules:
             end = min(start + chunk_size, text_length)
             chunk = text[start:end]
             chunks.append(chunk)
-
             # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
             start += chunk_size - overlap
 
         print(f"分块完成，共生成 {len(chunks)} 个块。")
-        print(f"lyw打印chunk：\n{chunks}")
         return chunks
 
     def chunk_json(self, content, max_chunk_size=1000):
@@ -1249,14 +1260,14 @@ Rules:
         if not checked_list:  # 空列表在布尔表达式会被视为False，非空为True
             self.comboBox_design_method.setCurrentIndex(-1)
 
-    def update_talking(self,data):
+    def update_talking(self, data):
         """
         输出对话过程
         :param data:
         :return:
         """
         self.plainTextEdit_update_talking.appendPlainText(data)
-        self.plainTextEdit_update_talking.moveCursor(QTextCursor.End) # 滚动到底部
+        self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
     def stop_generate(self):
         print("结束进程")
@@ -1265,8 +1276,9 @@ Rules:
                 self.thread.terminate()  # 强制终止
                 self.thread.wait()
                 self.generate_btn.setEnabled(True)
-                self.plainTextEdit_update_talking.clear()
-                QApplication.restoreOverrideCursor() # 停止鼠标转圈
+                # self.plainTextEdit_update_talking.clear()
+                QApplication.restoreOverrideCursor()  # 停止鼠标转圈
+
         except AttributeError as e:
             print("线程未创建")
         finally:
@@ -1285,19 +1297,20 @@ Rules:
         """将当前选中的路径列表保存到配置"""
         # 获取所有知识库路径
         all_items_text = self.get_current_knowledge_paths()
-        print("打印知识库目录:",all_items_text)
+        print("打印知识库目录:", all_items_text)
         # 使用QSettings保存列表
         self.settings.setValue("saved_directories", all_items_text)
 
     def load_saved_paths(self):
         """从配置加载之前保存的路径并添加到界面"""
         saved_paths = self.settings.value("saved_directories", [])
-        print("读取saved_paths",saved_paths)
+        print("读取saved_paths", saved_paths)
         # 注意：QSettings读取的列表可能是QStringList，确保转换为Python list of strings
         if isinstance(saved_paths, str):
             saved_paths = [saved_paths]  # 如果只有一个路径，它可能是字符串
+        saved_paths = list(reversed(saved_paths))
         for path in saved_paths:
-            self.add_directory_to_combox(path) # 把目录添加到combox里
+            self.add_directory_to_combox(path)  # 把目录添加到combox里
         self.load_directory(self.combo_kb.currentText())
 
     def add_directory_to_combox(self, path):
@@ -1310,5 +1323,4 @@ Rules:
     def clear_directory_to_combox(self):
         # 清空setting里存储的saved_directories，设置为空列表就行
         self.settings.setValue("saved_directories", [])
-        self.combo_kb.clear() # 重新设置combox
-
+        self.combo_kb.clear()  # 重新设置combox

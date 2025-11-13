@@ -43,3 +43,4 @@ design_methods = [
     "因果图测试",
     "正交分析法"
 ]
+IMAGE_API_KEY = "sk-ce93575f6e8d4a02ba15f8ab38a943a1"

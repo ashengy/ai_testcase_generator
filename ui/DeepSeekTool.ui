@@ -18,14 +18,14 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_1">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_6">
+       <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="1,5,1,5,0,5">
         <property name="topMargin">
          <number>0</number>
         </property>
         <item>
          <widget class="QLabel" name="label_api_key">
           <property name="text">
-           <string>API Key:</string>
+           <string>DeepSeek Api Key:</string>
           </property>
          </widget>
         </item>
@@ -39,6 +39,33 @@
           </property>
           <property name="placeholderText">
            <string>请输入API Key</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_image_api_key">
+          <property name="text">
+           <string>通义千问 Api Key:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="lineEdit_image_api_key">
+          <property name="text">
+           <string>sk-ce93575f6e8d4a02ba15f8ab38a943a1</string>
+          </property>
+          <property name="echoMode">
+           <enum>QLineEdit::Password</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="checkBox_analyzer_enable">
+          <property name="text">
+           <string>是否启动Ai分析图片</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
           </property>
          </widget>
         </item>
