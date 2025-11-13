@@ -271,7 +271,7 @@ class Ui_DeepSeekTool(object):
         self.api_key_input.setPlaceholderText(_translate("DeepSeekTool", "请输入API Key"))
         self.label_image_api_key.setText(_translate("DeepSeekTool", "通义千问 Api Key:"))
         self.lineEdit_image_api_key.setText(_translate("DeepSeekTool", "sk-ce93575f6e8d4a02ba15f8ab38a943a1"))
-        self.checkBox_analyzer_enable.setText(_translate("DeepSeekTool", "是否启动Ai分析图片"))
+        self.checkBox_analyzer_enable.setText(_translate("DeepSeekTool", "是否启用Ai分析图片"))
         self.label_module_input.setText(_translate("DeepSeekTool", "文本标题:"))
         self.module_input.setText(_translate("DeepSeekTool", "需求背景,功能描述,触发"))
         self.label_module_input_table.setText(_translate("DeepSeekTool", "表格标题:"))

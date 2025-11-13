@@ -62,7 +62,7 @@
         <item>
          <widget class="QCheckBox" name="checkBox_analyzer_enable">
           <property name="text">
-           <string>是否启动Ai分析图片</string>
+           <string>是否启用Ai分析图片</string>
           </property>
           <property name="checked">
            <bool>true</bool>
