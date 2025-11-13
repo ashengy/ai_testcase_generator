@@ -1237,10 +1237,15 @@ Rules:
         for i in design_methods:
             item = QtGui.QStandardItem(i)
             item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+            # Qt.CheckState.checked 设置默认全部勾选
+            item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
             self.custom_model.appendRow(item)
         self.comboBox_design_method.setModel(self.custom_model)
         self.comboBox_design_method.setCurrentIndex(-1)
+        self.reset_combox_text()
+        # 更新提示词
+        self.generate_testcase_prompt()
+
 
     def reset_combox_text(self):
         """

@@ -794,16 +794,17 @@ def chunk_text(text, chunk_size=3000, overlap=300):
     - list: 分块后的文本列表
     """
     # print("开始对文本进行分块：",text)
-    chunks = []
-    start = 0
-    text_length = len(text)
+    if text:
+        chunks = []
+        start = 0
+        text_length = len(text)
 
-    while start < text_length:
-        end = min(start + chunk_size, text_length)
-        chunk = text[start:end]
-        chunks.append(chunk)
-        # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
-        start += chunk_size - overlap
+        while start < text_length:
+            end = min(start + chunk_size, text_length)
+            chunk = text[start:end]
+            chunks.append(chunk)
+            # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
+            start += chunk_size - overlap
 
-    print(f"分块完成，共生成 {len(chunks)} 个块。")
-    return chunks
+        print(f"分块完成，共生成 {len(chunks)} 个块。")
+        return chunks
