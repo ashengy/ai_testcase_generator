@@ -59,16 +59,16 @@ class GenerateThread(QThread):
             #     "include_usage": True
             # }
         )
-        # 初始化回复内容
-        full_response = ""
-
-        # 遍历流式响应分块
+        # # 初始化回复内容
+        # full_response = ""
+        # print("开始打印DS回复内容")
+        # # 遍历流式响应分块
         # for chunk in completion:
         #     if chunk.choices[0].delta.content is not None:
         #         chunk_content = chunk.choices[0].delta.content
         #         full_response += chunk_content
         #         # 可选：实时打印分块内容（如聊天场景）
-        #         print(chunk_content, end="", flush=True)
+        #         print(f"{chunk_content}", end="", flush=True)
         #
         # print("\n完整回复:", full_response)
 
@@ -93,7 +93,6 @@ class GenerateThread(QThread):
                     print(delta.content, end='', flush=True)
                     answer_content += delta.content
                     self.current_status.emit(f"\n{answer_content}\n")
-
         return answer_content
 
     def extract_json_objects(self, text):
@@ -157,6 +156,7 @@ class GenerateThread(QThread):
             pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
                                                            image_replacement_list=replacements
                                                            )
+            pdf_context = pdf_context.replace("◦", "") # 把文档里不需要的符号去掉
             print("pdf_context是",pdf_context,flush=True)
             self.image_analyzer_result.emit(pdf_context)
             return pdf_context
@@ -172,20 +172,23 @@ class GenerateThread(QThread):
         try:
             all_result_str = ""
             for n, context_chunk in enumerate(self.context):
+                print(f"开始第{n+1}次推理")
                 result = self.generate_cases(context_chunk)
-                print(f"第{n + 1}次请求，结果为{result}")
                 if result is not None and isinstance(result, str):
                     all_result_str += result
                 else:
                     print(f"{context_chunk}推理结果异常！")
 
             if 'json' in all_result_str:
+                print("开始整合json")
                 all_result_str = self.extract_json_objects(all_result_str)
+                print("json整合完成:",all_result_str)
                 if isinstance(all_result_str, list) and len(all_result_str) > 0:
                     all_result_str = self.reformat_test_cases(all_result_str)
-                print("----------------------------")
-                print(all_result_str)
-                print("----------------------------")
+                # print("----------------------------")
+                print("整合已结束")
+                # print(all_result_str)
+                # print("----------------------------")
 
             self.finished.emit(all_result_str if isinstance(all_result_str, str) else str(all_result_str))
             self.current_status.emit("----本轮已执行完成！----")

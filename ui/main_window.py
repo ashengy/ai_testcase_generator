@@ -63,7 +63,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.param_choice_combo.setCurrentIndex(0)
         self.func_choice_combo.setCurrentIndex(0)
         self.comboBox.currentTextChanged.connect(self.updateLabel)
-        self.comboBox.setCurrentIndex(0)
+        self.comboBox.setCurrentIndex(6) # 设置行业默认选中游戏开发
         self.api_key_input.setEchoMode(QLineEdit.Password)
 
         self.preview_area.setReadOnly(True)
@@ -389,8 +389,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
 质量标准：
  - {selected_method['coverage']}
- - 正向场景用例占比60%
- - 异常场景用例占比30%
+ - 正向场景用例占比70%
+ - 异常场景用例占比20%
  - 边界场景用例占比10%
  \n
                     """
@@ -412,7 +412,9 @@ Rules:
 通过{method_display}实现：\n
 
 用例数量：\n
-尽可能多（不少于15条）\n
+根据需求的字数来决定测试用例的数量
+**不可遗漏任何需求（必须遵循的强制规则）
+尽可能多（不少于20条）\n
 
 用例设计需遵循：\n
 {desc_str} \n
@@ -425,17 +427,17 @@ Rules:
 2. 不要使用JavaScript语法（如.repeat()方法）
 3. 对于需要重复字符的情况，请直接写出完整字符串，例如："aaaaaaa..."而不是"a".repeat(7)
 4. 字符串长度限制测试时，请使用描述性文字如"256个字符的a"，而不是实际生成256个字符
-5. 字段：
+5. 字段(不需要写优先级 字段 也不需要写 测试数据 字段）：
    - 用例编号：<模块缩写>-<3位序号>
    - 用例标题：<测试目标> [正例/反例]
    - 前置条件：初始化状态描述
-   - 测试数据：参数值的具体组合
    - 操作步骤：带编号的明确步骤
    - 预期结果：可验证的断言
-   - 优先级：P0(冒烟)/P1(核心)/P2(次要)
 
 生成步骤：
-1. 参数建模 → 2. 场景分析 → 3. 用例生成 → 4. 交叉校验"""
+1. 参数建模 → 2. 场景分析 → 3. 用例生成 → 4. 交叉校验
+
+"""
             self.prompt_input.clear()
             self.prompt_input.setText(prompt)
         # return prompt
@@ -1134,33 +1136,6 @@ Rules:
             4: "Excel Files (*.xlsx)"
         }[index]
 
-    def chunk_text(self, text, chunk_size=3000, overlap=300):
-        """
-        将文本按固定长度分块，同时添加滑动窗口重叠。
-
-        参数：
-        - text (str): 输入的长文本内容
-        - chunk_size (int): 每块的最大字符数
-        - overlap (int): 相邻块的重叠字符数
-
-        返回：
-        - list: 分块后的文本列表
-        """
-        # print("开始对文本进行分块：",text)
-        chunks = []
-        start = 0
-        text_length = len(text)
-
-        while start < text_length:
-            end = min(start + chunk_size, text_length)
-            chunk = text[start:end]
-            chunks.append(chunk)
-            # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
-            start += chunk_size - overlap
-
-        print(f"分块完成，共生成 {len(chunks)} 个块。")
-        return chunks
-
     def chunk_json(self, content, max_chunk_size=1000):
         """
         将JSON内容按接口定义分块，确保接口数据完整。
@@ -1282,7 +1257,6 @@ Rules:
                 self.thread.terminate()  # 强制终止
                 self.thread.wait()
                 self.generate_btn.setEnabled(True)
-                # self.plainTextEdit_update_talking.clear()
                 QApplication.restoreOverrideCursor()  # 停止鼠标转圈
 
         except AttributeError as e:
