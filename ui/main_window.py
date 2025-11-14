@@ -1023,6 +1023,7 @@ Rules:
         self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
+        self.thread.image_analyzer_result.connect(self.update_preview_add_image)
         if not self.thread.isRunning():
             self.thread.start()
             if self.generateButton.text() == "开始推理":
@@ -1329,3 +1330,7 @@ Rules:
         # 清空setting里存储的saved_directories，设置为空列表就行
         self.settings.setValue("saved_directories", [])
         self.combo_kb.clear()  # 重新设置combox
+
+    def update_preview_add_image(self,data):
+        print("更新预览加图片分析:",data)
+        self.preview_area.setText(data)

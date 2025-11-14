@@ -14,6 +14,7 @@ class GenerateThread(QThread):
     finished = pyqtSignal(str)
     current_status = pyqtSignal(str)
     error = pyqtSignal(str)
+    image_analyzer_result = pyqtSignal(str)
 
     def __init__(self, prompt, job_area, func_type, design_method, image_api_key, pdf_path, batch_delay, analyzer_enable: bool, api_key=None, ):
         super().__init__()
@@ -157,37 +158,10 @@ class GenerateThread(QThread):
                                                            image_replacement_list=replacements
                                                            )
             print("pdf_context是",pdf_context,flush=True)
-
+            self.image_analyzer_result.emit(pdf_context)
             return pdf_context
         except Exception as e:
             self.error.emit(f"pdf_image_analyzer运行异常：{e}")
-
-    def chunk_text(self, text, chunk_size=3000, overlap=300):
-        """
-        将文本按固定长度分块，同时添加滑动窗口重叠。
-
-        参数：
-        - text (str): 输入的长文本内容
-        - chunk_size (int): 每块的最大字符数
-        - overlap (int): 相邻块的重叠字符数
-
-        返回：
-        - list: 分块后的文本列表
-        """
-        # print("开始对文本进行分块：",text)
-        chunks = []
-        start = 0
-        text_length = len(text)
-
-        while start < text_length:
-            end = min(start + chunk_size, text_length)
-            chunk = text[start:end]
-            chunks.append(chunk)
-            # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
-            start += chunk_size - overlap
-
-        print(f"分块完成，共生成 {len(chunks)} 个块。")
-        return chunks
 
     def run(self):
         pdf_context = self.pdf_image_analyzer()
