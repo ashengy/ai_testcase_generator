@@ -308,7 +308,7 @@
         </item>
         <item>
          <property name="text">
-          <string>游戏开发</string>
+          <string>SOC游戏</string>
          </property>
         </item>
         <item>
@@ -445,6 +445,11 @@
        <widget class="QComboBox" name="export_combo">
         <item>
          <property name="text">
+          <string>XLSX</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
           <string>Word 文档</string>
          </property>
         </item>
@@ -461,11 +466,6 @@
         <item>
          <property name="text">
           <string>JSON</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>XLSX</string>
          </property>
         </item>
        </widget>
