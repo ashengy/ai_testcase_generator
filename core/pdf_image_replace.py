@@ -47,7 +47,7 @@ def extract_pdf_text_with_image_list(
             for _ in range(fill_num):
                 image_replacement_list.append("")
             print(f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
-        print("打印image_replacement_list",image_replacement_list)
+        print(f"替换时，共找到{all_images_sorted}张图片")
         # 4. 遍历每一页，替换图片
         for page_num, page in enumerate(pdf.pages, 1):
             chars = page.chars
@@ -95,7 +95,7 @@ def extract_pdf_text_with_image_list(
                         if global_img["img_obj"] == img and global_img["page_num"] == page_num
                     )
                     # 获取对应的替换文字
-                    replacement_text = image_replacement_list[img_index]
+                    replacement_text = "\n" + image_replacement_list[img_index] + "\n"
                     page_image_marks.append({
                         "type": "image",
                         "content": replacement_text,
@@ -129,4 +129,5 @@ if __name__ == "__main__":
         pdf_path=PDF_PATH,  # 替换为你的PDF路径
         image_replacement_list=[]
     )
+    print(type(pdf_content))
     print("pdf_content是\n",pdf_content)
