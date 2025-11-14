@@ -2,6 +2,10 @@
 dist/
 extracted_images/
 .venv/
+<<<<<<< .merge_file_fPWVo6
+
+=======
+>>>>>>> .merge_file_Hj7lYB
 # 忽略根目录下的 /build 目录，但不忽略子目录下的 /build
 /build/
 
