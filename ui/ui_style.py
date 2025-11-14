@@ -35,6 +35,10 @@ def load_stylesheet():
              background-color: #FF0000;
              color: white;
          }
+        QPushButton#pushButton_start_analyzer_image {
+             background-color: #4E72B8;
+             color: white;
+         }
          QTextEdit {
              border: 1px solid #DCDFE6;
              border-radius: 4px;

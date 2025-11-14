@@ -93,7 +93,7 @@ if __name__ == "__main__":
     ]
 
     content = insert_image_position_with_list(
-        doc_path=r"123.docx",
+        doc_path=r"D:\ai\释放取消.docx",
         image_replacement_list=replacements,
     )
     print(content)
