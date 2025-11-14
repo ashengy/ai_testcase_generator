@@ -308,7 +308,7 @@
         </item>
         <item>
          <property name="text">
-          <string>游戏开发</string>
+          <string>SOC游戏</string>
          </property>
         </item>
         <item>
@@ -396,7 +396,7 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="2,2,2,5,1,3,3">
+     <layout class="QHBoxLayout" name="horizontalLayout_10" stretch="2,0,2,2,5,1,3,3">
       <property name="topMargin">
        <number>0</number>
       </property>
@@ -404,6 +404,13 @@
        <widget class="QPushButton" name="refreshPromptButton">
         <property name="text">
          <string>更新提示词</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_start_analyzer_image">
+        <property name="text">
+         <string>开始Ai分析图片</string>
         </property>
        </widget>
       </item>
@@ -445,6 +452,11 @@
        <widget class="QComboBox" name="export_combo">
         <item>
          <property name="text">
+          <string>XLSX</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
           <string>Word 文档</string>
          </property>
         </item>
@@ -461,11 +473,6 @@
         <item>
          <property name="text">
           <string>JSON</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>XLSX</string>
          </property>
         </item>
        </widget>

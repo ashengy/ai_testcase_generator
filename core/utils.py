@@ -781,7 +781,7 @@ def generate_example(self, method):
     return examples.get(method, "此方法示例未实现")
 
 
-def chunk_text(text, chunk_size=3000, overlap=300):
+def chunk_text(text, chunk_size=1500, overlap=300):
     """
     将文本按固定长度分块，同时添加滑动窗口重叠。
 
