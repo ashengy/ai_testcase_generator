@@ -1,7 +1,7 @@
 # 忽略名为 'dist' 的文件夹
 dist/
 extracted_images/
-
+.venv/
 # 忽略根目录下的 /build 目录，但不忽略子目录下的 /build
 /build/
 
