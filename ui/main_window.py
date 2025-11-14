@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
 from core.utils import chunk_text
-from core.worker import GenerateThread
+from core.worker import GenerateThread, PdfImageAnalyzer
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
 
@@ -65,9 +65,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.comboBox.currentTextChanged.connect(self.updateLabel)
         self.comboBox.setCurrentIndex(6) # 设置行业默认选中游戏开发
         self.api_key_input.setEchoMode(QLineEdit.Password)
-
         self.preview_area.setReadOnly(True)
-        self.result_area.setReadOnly(True)
+        self.result_area.setReadOnly(False)
 
         self.plainTextEdit_update_talking.setReadOnly(True)
         self.plainTextEdit_update_talking.setEnabled(True)
@@ -155,6 +154,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.export_btn.clicked.connect(self.export_result)
         self.pushButton_stop_generate.clicked.connect(self.stop_generate)
         self.pushButton_clear_history_path.clicked.connect(self.clear_directory_to_combox)
+        self.pushButton_start_analyzer_image.clicked.connect(self.start_image_analyzer)
         # 如果添加了新按钮，在这里添加连接
         # 示例：
         # if hasattr(self, 'new_button'):
@@ -689,7 +689,8 @@ Rules:
                 return
 
             # 优化文件过滤逻辑
-            valid_extensions = ('.docx', '.xlsx', '.md', '.txt', '.pdf', '.json', 'yml', 'yaml')
+            # valid_extensions = ('.docx', '.xlsx', '.md', '.txt', '.pdf', '.json', 'yml', 'yaml')
+            valid_extensions = ('.pdf')
             for fname in sorted(os.listdir(directory)):
                 full_path = os.path.join(directory, fname)
                 if os.path.isfile(full_path) and fname.lower().endswith(valid_extensions):
@@ -973,6 +974,8 @@ Rules:
             return {}
 
     def generate_report(self):
+        if self.generateButton.text() != "开始推理":
+            return
         self.plainTextEdit_update_talking.clear()  # 清空上一次的AI回复对话框展示内容
         """ 生成分析报告 """
         if not self.prompt_input.toPlainText().strip():
@@ -982,9 +985,8 @@ Rules:
         if not context:
             QMessageBox.warning(self, "提示", "内容预览框中无数据，请求大模型终止！")
             return
+        self.final_context = chunk_text(context)
 
-        self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
-        pdf_path = self.selected[0]
         # 获取API Key
         self.api_key = self.api_key_input.text().strip()
         if not self.api_key:
@@ -993,40 +995,26 @@ Rules:
             if reply == QMessageBox.No:
                 return
 
-        # 获取image API Key
-        self.image_api_key = self.lineEdit_image_api_key.text().strip()
-        if not self.image_api_key:
-            reply = QMessageBox.question(self, "提示", "未输入通义千问 API Key，将使用默认配置。是否继续？",
-                                         QMessageBox.Yes | QMessageBox.No)
-            if reply == QMessageBox.No:
-                return
-            elif reply == QMessageBox.Yes:
-                self.lineEdit_image_api_key.setText(config.constants.IMAGE_API_KEY)
-
         # 禁用按钮防止重复点击
         self.generate_btn.setEnabled(False)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.job_area = self.comboBox.currentText()
         self.func_type = self.func_choice_combo.currentText()
-        self.analyzer_enable = self.checkBox_analyzer_enable.isChecked()
-        print("查看self.analyzer_enable", self.analyzer_enable)
+
         # 创建异步线程，传递API Key
         self.thread = GenerateThread(
             prompt=self.prompt_input.toPlainText(),
+            context = self.final_context,
             job_area=self.job_area,
             func_type=self.func_type,
             design_method=self.comboBox_design_method.currentText(),
-            image_api_key=config.constants.IMAGE_API_KEY,
-            pdf_path=pdf_path,
-            batch_delay=1.0,
-            analyzer_enable=self.analyzer_enable,
             api_key=self.api_key  # 传递API Key
         )
         self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
-        self.thread.image_analyzer_result.connect(self.update_preview_add_image)
-        if not self.thread.isRunning():
+
+        if not self.thread.isRunning() and self.generateButton.text() == "开始推理":
             self.thread.start()
             if self.generateButton.text() == "开始推理":
                 self.generateButton.setText("推理中...")
@@ -1046,8 +1034,61 @@ Rules:
         """ 错误处理 """
         QMessageBox.critical(self, "生成错误", f"模型调用失败:\n{error_msg}")
         self.generate_btn.setEnabled(True)
+        self.pushButton_start_analyzer_image.setEnabled(True)
         self.generateButton.setText("开始推理")
         QApplication.restoreOverrideCursor()
+
+    def stop_generate(self):
+        print("结束进程")
+        try:
+            if self.thread.isRunning():
+                self.thread.terminate()  # 强制终止
+                self.thread.wait()
+                self.generate_btn.setEnabled(True)
+        except AttributeError as e:
+            print("线程未创建")
+        finally:
+            if self.generateButton.text() == "推理中...":
+                self.generateButton.setText("开始推理")
+            QApplication.restoreOverrideCursor()  # 停止鼠标转圈
+
+    def start_image_analyzer(self):
+        try:
+            self.analyzer_enable = self.checkBox_analyzer_enable.isChecked()
+            self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
+            # 获取image API Key
+            self.image_api_key = self.lineEdit_image_api_key.text().strip()
+            if not self.analyzer_enable or not self.selected:
+                return
+            if not self.image_api_key:
+                reply = QMessageBox.question(self, "提示", "未输入通义千问 API Key，将使用默认配置。是否继续？",
+                                             QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return
+                elif reply == QMessageBox.Yes:
+                    self.lineEdit_image_api_key.setText(config.constants.IMAGE_API_KEY)
+
+            # 禁用ai分析按钮，避免重复点击
+            self.pushButton_start_analyzer_image.setEnabled(False)
+            pdf_path = self.selected[0]
+            self.image_thread = PdfImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
+            self.image_thread.current_status.connect(self.update_talking)
+            self.image_thread.finished.connect(self.on_analyzer_finished)
+            self.image_thread.error.connect(self.on_generation_error)
+
+            if not self.image_thread.isRunning():
+                self.image_thread.start()
+                print("图片分析线程已启动")
+                self.generateButton.setText("Ai分析图片中...") #图片分析之前 禁止使用deepseek推理
+        except KeyboardInterrupt as e:
+            self.plainTextEdit_update_talking.appendPlainText("报错KeyboardInterrupt可能是中断了操作，请重新点击Ai分析按钮")
+
+    def on_analyzer_finished(self,data):
+        self.preview_area.setText(data) # 更新预览内容，把图片分析后
+        self.pushButton_start_analyzer_image.setEnabled(True)
+        self.generateButton.setText("开始推理")
+        # 分析完毕给，给一个弹框提示去内容预览里检查图片分析是否正
+        QMessageBox.information(self,"ai分析完成","检查内容预览中的分析结果是否正确，再点击开始推理")
 
     def json_to_excel(self, json_data, output_file):
         """
@@ -1129,11 +1170,11 @@ Rules:
         """ 获取导出文件格式过滤器 """
         index = self.export_combo.currentIndex()
         return {
-            0: "Word Documents (*.docx)",
-            1: "Text Files (*.txt)",
-            2: "Markdown Files (*.md)",
-            3: "JSON Files (*.json)",
-            4: "Excel Files (*.xlsx)"
+            0: "Excel Files (*.xlsx)",
+            1: "Word Documents (*.docx)",
+            2: "Text Files (*.txt)",
+            3: "Markdown Files (*.md)",
+            4: "JSON Files (*.json)"
         }[index]
 
     def chunk_json(self, content, max_chunk_size=1000):
@@ -1222,7 +1263,6 @@ Rules:
         # 更新提示词
         self.generate_testcase_prompt()
 
-
     def reset_combox_text(self):
         """
         下拉框勾选有变化时，更新下拉框显示的内容
@@ -1249,21 +1289,6 @@ Rules:
         """
         self.plainTextEdit_update_talking.appendPlainText(data)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
-
-    def stop_generate(self):
-        print("结束进程")
-        try:
-            if self.thread.isRunning():
-                self.thread.terminate()  # 强制终止
-                self.thread.wait()
-                self.generate_btn.setEnabled(True)
-                QApplication.restoreOverrideCursor()  # 停止鼠标转圈
-
-        except AttributeError as e:
-            print("线程未创建")
-        finally:
-            if self.generateButton.text() == "推理中...":
-                self.generateButton.setText("开始推理")
 
     def get_current_knowledge_paths(self):
         all_items_text = []  # 创建一个空列表来存储所有项的文本
@@ -1304,7 +1329,3 @@ Rules:
         # 清空setting里存储的saved_directories，设置为空列表就行
         self.settings.setValue("saved_directories", [])
         self.combo_kb.clear()  # 重新设置combox
-
-    def update_preview_add_image(self,data):
-        print("更新预览加图片分析:",data)
-        self.preview_area.setText(data)

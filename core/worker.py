@@ -14,19 +14,15 @@ class GenerateThread(QThread):
     finished = pyqtSignal(str)
     current_status = pyqtSignal(str)
     error = pyqtSignal(str)
-    image_analyzer_result = pyqtSignal(str)
 
-    def __init__(self, prompt, job_area, func_type, design_method, image_api_key, pdf_path, batch_delay, analyzer_enable: bool, api_key=None, ):
+    def __init__(self, prompt, context,job_area, func_type, design_method, api_key=None, ):
         super().__init__()
         self.prompt = prompt
         self.job_area = job_area
         self.func_type = func_type
         self.design_method = design_method
         self.api_key = api_key  # 添加API Key参数
-        self.image_api_key = image_api_key
-        self.pdf_path = pdf_path
-        self.batch_delay = batch_delay
-        self.analyzer_enable = analyzer_enable
+        self.context = context
 
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
@@ -139,34 +135,8 @@ class GenerateThread(QThread):
             print(f"reformat_test_cases处理出错: {e}")
             return json.dumps(data, indent=2, ensure_ascii=False) if not isinstance(data, str) else data
 
-    def pdf_image_analyzer(self):
-        print("启动pdf_image_analyzer",flush=True)
-
-        try:
-            # 根据开关判断是否使用ai图片分析
-            if self.analyzer_enable:
-                self.current_status.emit(f"----开始启动AI分析图片...----\n")
-                analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
-                replacements = analyzer.process_pdf_images(self.pdf_path, batch_delay=self.batch_delay)
-                self.current_status.emit(f"图片分析结果:\n{replacements}\n")
-            else:
-                # 不使用ai分析直接返回空列表(已在extract_pdf_text_with_image_list兼容了有图片但是传入列表为空的情况）
-                replacements = []
-            # 传入要替换的图片文字结果的列表
-            pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
-                                                           image_replacement_list=replacements
-                                                           )
-            pdf_context = pdf_context.replace("◦", "") # 把文档里不需要的符号去掉
-            print("pdf_context是",pdf_context,flush=True)
-            self.image_analyzer_result.emit(pdf_context)
-            return pdf_context
-        except Exception as e:
-            self.error.emit(f"pdf_image_analyzer运行异常：{e}")
-
     def run(self):
-        pdf_context = self.pdf_image_analyzer()
         self.current_status.emit(f"----开始生成测试用例...----\n")
-        self.context = chunk_text(pdf_context)
         self.current_status.emit(f"替换后的文档内容:\n{self.context}\n")
         print("self.context是",self.context)
         try:
@@ -185,12 +155,45 @@ class GenerateThread(QThread):
                 print("json整合完成:",all_result_str)
                 if isinstance(all_result_str, list) and len(all_result_str) > 0:
                     all_result_str = self.reformat_test_cases(all_result_str)
-                # print("----------------------------")
                 print("整合已结束")
-                # print(all_result_str)
-                # print("----------------------------")
 
             self.finished.emit(all_result_str if isinstance(all_result_str, str) else str(all_result_str))
             self.current_status.emit("----本轮已执行完成！----")
         except Exception as e:
             self.error.emit(str(e))
+
+
+class PdfImageAnalyzer(QThread):
+
+    current_status = pyqtSignal(str)
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self,pdf_path, batch_delay, image_api_key,analyzer_enable: bool ):
+        super().__init__()
+        self.image_api_key = image_api_key
+        self.pdf_path = pdf_path
+        self.batch_delay = batch_delay
+        self.analyzer_enable = analyzer_enable
+
+    def run(self):
+        print("启动PdfImageAnalyzer",flush=True)
+        try:
+            # 根据开关判断是否使用ai图片分析
+            if self.analyzer_enable:
+                self.current_status.emit(f"----开始启动AI分析图片...----\n")
+                analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
+                replacements = analyzer.process_pdf_images(self.pdf_path, batch_delay=self.batch_delay)
+                self.current_status.emit(f"----AI分析图片已完成，共发现{len(replacements)}张图片----\n")
+            else:
+                # 不使用ai分析直接返回空列表(已在extract_pdf_text_with_image_list兼容了有图片但是传入列表为空的情况）
+                replacements = []
+            # 传入要替换的图片文字结果的列表
+            pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
+                                                           image_replacement_list=replacements
+                                                           )
+            pdf_context = pdf_context.replace("◦", "") # 把文档里不需要的符号去掉
+            print("pdf_context是",pdf_context,flush=True)
+            self.finished.emit(pdf_context)
+        except Exception as e:
+            self.error.emit(f"PdfImageAnalyzer运行异常：{e}")
