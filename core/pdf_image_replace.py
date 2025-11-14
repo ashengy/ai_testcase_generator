@@ -1,5 +1,5 @@
 import pdfplumber
-from core.pdf_image_ai_analyzer import PDFImageAIAnalyzer
+
 
 def extract_pdf_text_with_image_list(
         pdf_path,
@@ -46,7 +46,8 @@ def extract_pdf_text_with_image_list(
             fill_num = len(all_images_sorted) - len(image_replacement_list)
             for _ in range(fill_num):
                 image_replacement_list.append("")
-            print(f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
+            print(
+                f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
         print(f"替换时，共找到{all_images_sorted}张图片")
         # 4. 遍历每一页，替换图片
         for page_num, page in enumerate(pdf.pages, 1):
@@ -130,4 +131,4 @@ if __name__ == "__main__":
         image_replacement_list=[]
     )
     print(type(pdf_content))
-    print("pdf_content是\n",pdf_content)
+    print("pdf_content是\n", pdf_content)
