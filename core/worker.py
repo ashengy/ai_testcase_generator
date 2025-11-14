@@ -184,7 +184,12 @@ class PdfImageAnalyzer(QThread):
                 self.current_status.emit(f"----开始启动AI分析图片...----\n")
                 analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
                 replacements = analyzer.process_pdf_images(self.pdf_path, batch_delay=self.batch_delay)
-                self.current_status.emit(f"----AI分析图片已完成，共发现{len(replacements)}张图片----\n")
+                for i,v in enumerate(replacements):
+                    if v == "":
+                        v = "无效图片，已过滤"
+                    self.current_status.emit(f"第{i+1}张图分析结果:\n {v} \n")
+                self.current_status.emit(f"----AI分析已完成，共发现{len(replacements)}张图片----\n")
+
             else:
                 # 不使用ai分析直接返回空列表(已在extract_pdf_text_with_image_list兼容了有图片但是传入列表为空的情况）
                 replacements = []
@@ -192,7 +197,8 @@ class PdfImageAnalyzer(QThread):
             pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
                                                            image_replacement_list=replacements
                                                            )
-            pdf_context = pdf_context.replace("◦", "") # 把文档里不需要的符号去掉
+            pdf_context = pdf_context.strip("◦") # 把文档里不需要的符号去掉
+            pdf_context = pdf_context.strip(" ") # 去空格
             print("pdf_context是",pdf_context,flush=True)
             self.finished.emit(pdf_context)
         except Exception as e:

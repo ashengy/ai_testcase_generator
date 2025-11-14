@@ -1088,7 +1088,7 @@ Rules:
         self.pushButton_start_analyzer_image.setEnabled(True)
         self.generateButton.setText("开始推理")
         # 分析完毕给，给一个弹框提示去内容预览里检查图片分析是否正
-        QMessageBox.information(self,"ai分析完成","检查内容预览中的分析结果是否正确，再点击开始推理")
+        QMessageBox.information(self,"ai分析完成","检查分析结果是否正确后，再点击开始推理")
 
     def json_to_excel(self, json_data, output_file):
         """
