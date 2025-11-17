@@ -537,7 +537,7 @@ def json_to_excel(json_data, output_file):
     else:
         print("Excel 文件生成失败")
 
-def chunk_text(text, chunk_size=2000, overlap=300):
+def chunk_text(text, chunk_size=30000, overlap=500):
     """
     将文本按固定长度分块，同时添加滑动窗口重叠。
 

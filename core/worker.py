@@ -29,7 +29,7 @@ class GenerateThread(QThread):
         # 初始化OpenAI客户端
         client = OpenAI(
             api_key=self.api_key if self.api_key else 'sk-8509fd7dfb9248e49334111e24141d22',  # 使用传入的API Key
-            base_url='https://api.deepseek.com'
+            base_url='https://api.deepseek.com',
         )
 
         # chunked_context_list = self.chunk_data(self.context, chunk_size=2000)  # 根据需要调整 chunk_size
@@ -52,6 +52,7 @@ class GenerateThread(QThread):
                                             f'提示词：{self.prompt}；'}
             ],
             stream=True,
+            max_tokens=64000-4000,
             # 解除以下注释会在最后一个chunk返回Token使用量
             # stream_options={
             #     "include_usage": True
