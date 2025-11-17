@@ -38,18 +38,9 @@ class PDFImageAIAnalyzer:
         self.model_name = model_name
         self.image_data = []
 
-    def extract_images_from_pdf(self, pdf_path: str, output_dir: str = "extracted_images",
-                                min_width: int = 50, min_height: int = 50,
-                                min_file_size: int = 1024) -> List[Dict[str, Any]]:
+    def extract_images_from_pdf(self, pdf_path: str, output_dir: str = "extracted_images") -> List[Dict[str, Any]]:
         """
-        从PDF中提取所有图片及其位置信息，支持按尺寸和文件大小过滤
-
-        Args:
-            pdf_path: PDF文件路径
-            output_dir: 图片输出目录
-            min_width: 图片最小宽度（像素）
-            min_height: 图片最小高度（像素）
-            min_file_size: 图片最小文件大小（字节）
+        从PDF中提取所有图片及其位置信息
         """
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -58,7 +49,6 @@ class PDFImageAIAnalyzer:
         images_info = []
 
         print(f"开始从PDF提取图片...")
-
         for page_num in range(len(doc)):
             page = doc[page_num]
             image_list = page.get_images()
@@ -69,12 +59,6 @@ class PDFImageAIAnalyzer:
                     pix = fitz.Pixmap(doc, xref)
 
                     if pix.n - pix.alpha < 4:  # 检查是否是RGB
-                        # 检查图片尺寸是否符合要求
-                        if pix.width < min_width or pix.height < min_height:
-                            print(f"跳过小尺寸图片: {pix.width}x{pix.height} (要求: {min_width}x{min_height})")
-                            pix = None
-                            continue
-
                         # 生成唯一图片ID
                         img_hash = hashlib.md5(pix.samples).hexdigest()[:8]
                         img_name = f"page_{page_num + 1}_img_{img_index + 1}_{img_hash}.png"
@@ -82,14 +66,6 @@ class PDFImageAIAnalyzer:
 
                         # 保存图片
                         pix.save(img_path)
-
-                        # 检查文件大小是否符合要求
-                        file_size = os.path.getsize(img_path)
-                        if file_size < min_file_size:
-                            print(f"跳过小文件: {file_size} bytes (要求: {min_file_size} bytes)")
-                            os.remove(img_path)  # 删除不满足条件的文件
-                            pix = None
-                            continue
 
                         # 获取图片位置信息
                         image_instances = page.get_image_rects(xref)
@@ -120,13 +96,13 @@ class PDFImageAIAnalyzer:
                                 },
                                 "page_number": page_num + 1,
                                 "image_index": img_index + 1,
-                                "file_size": file_size,
+                                "file_size": os.path.getsize(img_path),
                                 "dimensions": (pix.width, pix.height)
                             }
 
                             images_info.append(image_info)
                             print(
-                                f"提取图片: {image_info['image_id']} - 位置: 第{page_num + 1}页 ({position.x0:.1f}, {position.y0:.1f}) - 尺寸: {pix.width}x{pix.height}")
+                                f"提取图片: {image_info['image_id']} - 位置: 第{page_num + 1}页 ({position.x0:.1f}, {position.y0:.1f})")
 
                     pix = None  # 释放内存
 
@@ -192,6 +168,7 @@ class PDFImageAIAnalyzer:
 所有描述必须基于图片实际内容，使用中性语言（如“可能表示”而非肯定断言）。
 如果图片是流程图或文字图，描述其结构、箭头、文本框等元素，不强制使用游戏术语。
 """
+
 
             # 使用dashscope直接调用多模态对话API
             messages = [
@@ -313,90 +290,70 @@ class PDFImageAIAnalyzer:
             "related_suggestions": ""
         }
 
-    def process_pdf_images(self, pdf_path: str, batch_delay: float = 1.0,
-                           min_width: int = 50, min_height: int = 50,
-                           min_file_size: int = 1024) -> list[str]:
+    def process_pdf_images(self, pdf_path: str, batch_delay: float) -> list[str]:
         """
         处理PDF中的所有图片
-
-        Args:
-            pdf_path: PDF文件路径
-            batch_delay: 批处理延迟时间（秒）
-            min_width: 图片最小宽度（像素）
-            min_height: 图片最小高度（像素）
-            min_file_size: 图片最小文件大小（字节）
         """
-        output_dir = "extracted_images"
+        # 提取图片
+        images_info = self.extract_images_from_pdf(pdf_path)
 
-        # 提取所有图片（包括不符合要求的）
-        all_images_info = self.extract_images_from_pdf(
-            pdf_path,
-            output_dir=output_dir,
-            min_width=0,  # 先提取所有图片，不过滤
-            min_height=0,
-            min_file_size=0
-        )
-
-        if not all_images_info:
+        if not images_info:
             return []
 
-        # 筛选出符合要求的图片
-        valid_images_info = self.extract_images_from_pdf(
-            pdf_path,
-            output_dir=output_dir,
-            min_width=min_width,
-            min_height=min_height,
-            min_file_size=min_file_size
-        )
+        print(f"开始AI分析 {len(images_info)} 张图片...")
 
-        # 创建符合要求图片的ID集合，用于快速查找
-        valid_image_ids = {img["image_id"] for img in valid_images_info}
+        results = {
+            "pdf_info": {
+                "file_path": pdf_path,
+                "total_pages": max([img['page_number'] for img in images_info]) if images_info else 0,
+                "total_images": len(images_info),
+                "processing_time": None
+            },
+            "analysis_results": [],
+            "summary": {}
+        }
 
-        print(f"总共找到 {len(all_images_info)} 张图片，其中 {len(valid_images_info)} 张符合要求")
+        start_time = time.time()
 
-        main_contents = []
+        # 依次处理每张图片
+        for i, image_info in enumerate(images_info):
+            print(f"处理进度: {i + 1}/{len(images_info)} - {image_info['image_id']}")
 
-        # 为每张图片处理结果（符合要求的进行AI分析，不符合的用占位符）
-        for i, image_info in enumerate(all_images_info):
-            image_id = image_info["image_id"]
-            print(f"处理进度: {i + 1}/{len(all_images_info)} - {image_id}")
+            # AI分析图片
+            ai_analysis = self.analyze_image_with_ai(image_info)
 
-            # 检查图片是否符合尺寸要求
-            if image_id in valid_image_ids:
-                # 符合要求的图片进行AI分析
-                ai_analysis = self.analyze_image_with_ai(image_info)
+            # 整合结果
+            result_entry = {
+                **image_info,
+                "ai_analysis": ai_analysis
+            }
 
-                main_content = ai_analysis["main_content"]
-                # 对于不符合要求的图片内容，传一个空占位符
-                if ("这张图片不符合规定像素尺寸要求" in main_content or
-                        "无效图片，无法识别" in main_content or
-                        not main_content.strip()):
+            results["analysis_results"].append(result_entry)
 
-                    content = ""  # 空占位符
-                else:
-                    content = main_content
-            else:
-
-                content = ""
-
-            main_contents.append(content)
-
-            # 添加延迟以避免API限制（仅对需要AI分析的图片）
-            if image_id in valid_image_ids and i < len(all_images_info) - 1:
+            # 添加延迟以避免API限制
+            if i < len(images_info) - 1:
                 time.sleep(batch_delay)
 
-        print("main_contents最终结果:", main_contents)
+        # # 计算处理时间
+        # processing_time = time.time() - start_time
+        # results["pdf_info"]["processing_time"] = f"{processing_time:.2f}秒"
 
-        # AI分析完成后删除extracted_images文件夹及其内容
-        try:
-            if os.path.exists(output_dir):
-                import shutil
-                shutil.rmtree(output_dir)
-                print(f"已删除 {output_dir} 文件夹及其内容")
-        except Exception as e:
-            print(f"删除 {output_dir} 文件夹时出错: {e}")
+        # 生成摘要
+        # results["summary"] = self._generate_summary(results)
+        print("AI回复内容：",results)
 
+        main_contents = []
+        for i in results["analysis_results"]:
+            main_content = i["ai_analysis"]["main_content"]
+            if "这张图片并不是来自PDF文档的游戏界面截图" in main_content:
+                content = main_content[45:]
+            elif "无效图片，无法识别" in main_content:
+                content = " "
+            else:
+                content = main_content
+            main_contents.append(content)
         return main_contents
+
 
 
 if __name__ == "__main__":
