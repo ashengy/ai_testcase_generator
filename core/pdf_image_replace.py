@@ -113,7 +113,8 @@ def extract_pdf_text_with_image_list(
             full_content.append(f"{page_content}")
 
     # 5. 输出结果
-    content = " ".join(full_content)
+    org_content = " ".join(full_content)
+    content = org_content.replace("·","")  #去掉多余符号（必须！）
     return content
 
 

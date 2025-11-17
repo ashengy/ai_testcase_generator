@@ -551,16 +551,16 @@ def chunk_text(text, chunk_size=2000, overlap=300):
     """
     # print("开始对文本进行分块：",text)
     if text:
+        clear_text = text.replace("·","") #去掉文档里的多余符号
         chunks = []
         start = 0
-        text_length = len(text)
+        text_length = len(clear_text)
 
         while start < text_length:
             end = min(start + chunk_size, text_length)
-            chunk = text[start:end]
+            chunk = clear_text[start:end]
             chunks.append(chunk)
             # 滑动窗口：下一块的起始位置向后移动 chunk_size - overlap
             start += chunk_size - overlap
-
-        print(f"分块完成，共生成 {len(chunks)} 个块。")
+        print(f"分块完成，共生成了 {len(chunks)} 个块。")
         return chunks

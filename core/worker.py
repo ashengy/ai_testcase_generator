@@ -13,6 +13,7 @@ class GenerateThread(QThread):
     """异步生成线程"""
     finished = pyqtSignal(str)
     current_status = pyqtSignal(str)
+    current_stage = pyqtSignal(str)
     error = pyqtSignal(str)
 
     def __init__(self, prompt, context,job_area, func_type, design_method, api_key=None, ):
@@ -40,7 +41,8 @@ class GenerateThread(QThread):
         # 创建聊天完成请求
         print("开始跟AI进行会话.........")
         completion = client.chat.completions.create(
-            model="deepseek-reasoner",  # 此处以 deepseek-r1 为例，可按需更换模型名称
+            model="deepseek-reasoner",
+            #model="deepseek-chat",# 此处以 deepseek-r1 为例，可按需更换模型名称
             # model="qwen3-235b-a22b-instruct-2507",  # 此处以 deepseek-r1 为例，可按需更换模型名称
             messages=[
                 {'role': 'user', 'content': f'所在行业:  {self.job_area}；'
@@ -102,6 +104,7 @@ class GenerateThread(QThread):
                 print(f"Error decoding JSON: {e}")
                 print(match)
                 continue
+
         return json_objects
 
     def reformat_test_cases(self, data):
@@ -140,13 +143,17 @@ class GenerateThread(QThread):
         print("self.context是",self.context)
         try:
             all_result_str = ""
+            count = len(self.context)
             for n, context_chunk in enumerate(self.context):
-                print(f"开始第{n+1}次推理")
+                # 开始推理时同步进度
+                self.current_stage.emit(f"当前推理进度：{n}/{count}")
                 result = self.generate_cases(context_chunk)
                 if result is not None and isinstance(result, str):
                     all_result_str += result
                 else:
                     print(f"{context_chunk}推理结果异常！")
+                # 本轮推理完成时 同步进度
+                self.current_stage.emit(f"当前推理进度：{n+1}/{count}")
 
             if 'json' in all_result_str:
                 print("开始整合json")
@@ -196,8 +203,8 @@ class PdfImageAnalyzer(QThread):
             pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
                                                            image_replacement_list=replacements
                                                            )
-            pdf_context = pdf_context.strip("◦") # 把文档里不需要的符号去掉
-            pdf_context = pdf_context.strip(" ") # 去空格
+            pdf_context = pdf_context.replace("◦","") # 把文档里不需要的符号去掉
+            pdf_context = pdf_context.replace(" ","") # 去空格
             print("pdf_context是",pdf_context,flush=True)
             self.finished.emit(pdf_context)
         except Exception as e:

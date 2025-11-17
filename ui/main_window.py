@@ -70,7 +70,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         self.plainTextEdit_update_talking.setReadOnly(True)
         self.plainTextEdit_update_talking.setEnabled(True)
-        self.plainTextEdit_update_talking.document().setMaximumBlockCount(3000)
+        # 设置日志框的最大字数，只保持最新消息
+        self.plainTextEdit_update_talking.document().setMaximumBlockCount(10000)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
         # 窗口初始化时加载设置保存路径
@@ -774,7 +775,7 @@ Rules:
                     all_content = json.dumps(all_content, indent=4, ensure_ascii=False) if isinstance(all_content, (
                         dict, list)) else str(all_content)
 
-        self.preview_area.setText(all_content)
+        self.preview_area.setText(";".join(self.context))
 
     def read_file(self, file_path):
         """ 多格式文件读取 """
@@ -1015,6 +1016,7 @@ Rules:
         self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
+        self.thread.current_stage.connect(self.update_generate_stage)
 
         if not self.thread.isRunning() and self.generateButton.text() == "开始推理":
             self.thread.start()
@@ -1030,6 +1032,7 @@ Rules:
             self.result_area.setText(str(result))
         self.generate_btn.setEnabled(True)
         self.generateButton.setText("开始推理")
+        self.label_stage.setText("无进行中的推理")
         QApplication.restoreOverrideCursor()
 
     def on_generation_error(self, error_msg):
@@ -1038,6 +1041,7 @@ Rules:
         self.generate_btn.setEnabled(True)
         self.pushButton_start_analyzer_image.setEnabled(True)
         self.generateButton.setText("开始推理")
+        self.label_stage.setText("无进行中的推理")
         QApplication.restoreOverrideCursor()
 
     def stop_generate(self):
@@ -1052,6 +1056,7 @@ Rules:
         finally:
             if self.generateButton.text() == "推理中...":
                 self.generateButton.setText("开始推理")
+            self.label_stage.setText("无进行中的推理")
             QApplication.restoreOverrideCursor()  # 停止鼠标转圈
 
     def start_image_analyzer(self):
@@ -1109,6 +1114,12 @@ Rules:
 
             # 如果数据是列表，直接转换为DataFrame
             if isinstance(data, list):
+                # 格式化操作步骤，list转化成str
+                for i in data:
+                    step_list = i["操作步骤"]
+                    step = ";".join(step_list)
+                    i["操作步骤"] = step
+
                 df = pd.DataFrame(data)
             # 如果数据是字典，尝试提取其中的列表
             elif isinstance(data, dict):
@@ -1330,3 +1341,6 @@ Rules:
         # 清空setting里存储的saved_directories，设置为空列表就行
         self.settings.setValue("saved_directories", [])
         self.combo_kb.clear()  # 重新设置combox
+
+    def update_generate_stage(self,stage):
+        self.label_stage.setText(stage)
