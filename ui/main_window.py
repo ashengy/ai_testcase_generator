@@ -70,7 +70,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         self.plainTextEdit_update_talking.setReadOnly(True)
         self.plainTextEdit_update_talking.setEnabled(True)
-        self.plainTextEdit_update_talking.document().setMaximumBlockCount(3000)
+        # 设置日志框的最大字数，只保持最新消息
+        self.plainTextEdit_update_talking.document().setMaximumBlockCount(10000)
         self.plainTextEdit_update_talking.moveCursor(QTextCursor.End)  # 滚动到底部
 
         # 窗口初始化时加载设置保存路径
@@ -404,6 +405,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
             # ========== 生成提示词 ==========
             prompt = f"""
+尽量少输出思考过程
+
 Role: 测试用例设计专家
 
 Rules:
@@ -412,9 +415,11 @@ Rules:
 通过{method_display}实现：\n
 
 用例数量：\n
-根据需求的字数来决定测试用例的数量
+根据需求的字数来决定测试用例的数量,尽可能多，越详细越好；
+最低条数限制：大型功能200~300条,中型功能100~200条,小型功能50~100条，极小型功能10~20条；
+最高条数限制：不设限；
 **不可遗漏任何需求（必须遵循的强制规则）
-尽可能多（不少于20条）\n
+\n
 
 用例设计需遵循：\n
 {desc_str} \n
@@ -423,7 +428,8 @@ Rules:
 {parameters} \n
 
 输出要求：
-1. 格式：结构化JSON,必须严格遵守JSON语法规范
+0. 当回复token即将达到上限时，不要截断输出，不满足完整用例结构的测试用例直接废弃该条，一定要确保回复的结构是完整的。
+1. 格式：结构化JSON,必须严格遵守JSON语法规范,严格遵守示例中的格式，不擅自修改任何结构，包括但不限于新增字段
 2. 不要使用JavaScript语法（如.repeat()方法）
 3. 对于需要重复字符的情况，请直接写出完整字符串，例如："aaaaaaa..."而不是"a".repeat(7)
 4. 字符串长度限制测试时，请使用描述性文字如"256个字符的a"，而不是实际生成256个字符
@@ -433,7 +439,7 @@ Rules:
    - 前置条件：初始化状态描述
    - 操作步骤：带编号的明确步骤
    - 预期结果：可验证的断言
-
+6.在最终回复的内容一开始先回复```json，回复完成后再多回复内容```，因为开始的'''json和末尾的'''我需要用来之后的数据格式处理。
 生成步骤：
 1. 参数建模 → 2. 场景分析 → 3. 用例生成 → 4. 交叉校验
 
@@ -772,7 +778,7 @@ Rules:
                     all_content = json.dumps(all_content, indent=4, ensure_ascii=False) if isinstance(all_content, (
                         dict, list)) else str(all_content)
 
-        self.preview_area.setText(all_content)
+        self.preview_area.setText(";".join(self.context))
 
     def read_file(self, file_path):
         """ 多格式文件读取 """
@@ -1013,6 +1019,7 @@ Rules:
         self.thread.current_status.connect(self.update_talking)
         self.thread.finished.connect(self.on_generation_finished)
         self.thread.error.connect(self.on_generation_error)
+        self.thread.current_stage.connect(self.update_generate_stage)
 
         if not self.thread.isRunning() and self.generateButton.text() == "开始推理":
             self.thread.start()
@@ -1028,6 +1035,7 @@ Rules:
             self.result_area.setText(str(result))
         self.generate_btn.setEnabled(True)
         self.generateButton.setText("开始推理")
+        self.label_stage.setText("无进行中的推理")
         QApplication.restoreOverrideCursor()
 
     def on_generation_error(self, error_msg):
@@ -1036,6 +1044,7 @@ Rules:
         self.generate_btn.setEnabled(True)
         self.pushButton_start_analyzer_image.setEnabled(True)
         self.generateButton.setText("开始推理")
+        self.label_stage.setText("无进行中的推理")
         QApplication.restoreOverrideCursor()
 
     def stop_generate(self):
@@ -1050,6 +1059,7 @@ Rules:
         finally:
             if self.generateButton.text() == "推理中...":
                 self.generateButton.setText("开始推理")
+            self.label_stage.setText("无进行中的推理")
             QApplication.restoreOverrideCursor()  # 停止鼠标转圈
 
     def start_image_analyzer(self):
@@ -1088,7 +1098,7 @@ Rules:
         self.pushButton_start_analyzer_image.setEnabled(True)
         self.generateButton.setText("开始推理")
         # 分析完毕给，给一个弹框提示去内容预览里检查图片分析是否正
-        QMessageBox.information(self,"ai分析完成","检查内容预览中的分析结果是否正确，再点击开始推理")
+        QMessageBox.information(self,"ai分析完成","检查分析结果是否正确后，再点击开始推理")
 
     def json_to_excel(self, json_data, output_file):
         """
@@ -1099,7 +1109,6 @@ Rules:
         try:
             import pandas as pd
             import json
-
             # 如果输入是JSON字符串，解析为字典
             if isinstance(json_data, str):
                 data = json.loads(json_data)
@@ -1108,6 +1117,12 @@ Rules:
 
             # 如果数据是列表，直接转换为DataFrame
             if isinstance(data, list):
+                # 格式化操作步骤，list转化成str
+                for i in data:
+                    step_list = i["操作步骤"]
+                    step = ";".join(step_list)
+                    i["操作步骤"] = step
+
                 df = pd.DataFrame(data)
             # 如果数据是字典，尝试提取其中的列表
             elif isinstance(data, dict):
@@ -1329,3 +1344,6 @@ Rules:
         # 清空setting里存储的saved_directories，设置为空列表就行
         self.settings.setValue("saved_directories", [])
         self.combo_kb.clear()  # 重新设置combox
+
+    def update_generate_stage(self,stage):
+        self.label_stage.setText(stage)
