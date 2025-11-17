@@ -40,7 +40,7 @@ class GenerateThread(QThread):
         # 创建聊天完成请求
         print("开始跟AI进行会话.........")
         completion = client.chat.completions.create(
-            model="deepseek-chat",  # 此处以 deepseek-r1 为例，可按需更换模型名称
+            model="deepseek-reasoner",  # 此处以 deepseek-r1 为例，可按需更换模型名称
             # model="qwen3-235b-a22b-instruct-2507",  # 此处以 deepseek-r1 为例，可按需更换模型名称
             messages=[
                 {'role': 'user', 'content': f'所在行业:  {self.job_area}；'
@@ -137,7 +137,6 @@ class GenerateThread(QThread):
 
     def run(self):
         self.current_status.emit(f"----开始生成测试用例...----\n")
-        self.current_status.emit(f"替换后的文档内容:\n{self.context}\n")
         print("self.context是",self.context)
         try:
             all_result_str = ""
