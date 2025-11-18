@@ -92,6 +92,7 @@ class GenerateThread(QThread):
                     print(delta.content, end='', flush=True)
                     answer_content += delta.content
                     self.current_status.emit(f"\n{answer_content}\n")
+        print(f"思考字数：{len(reasoning_content)}")
         return answer_content
 
     def extract_json_objects(self, text):
