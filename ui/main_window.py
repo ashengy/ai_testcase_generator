@@ -405,11 +405,15 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
             # ========== 生成提示词 ==========
             prompt = f"""
-尽量少输出思考过程
+
 
 Role: 测试用例设计专家
 
 Rules:
+推理要求：
+1. 【推理过程极度精简】每个推理步骤用一句话概括，使用箭头(→)或符号表示逻辑关系
+2. 【输出完整内容】确保本分段的内容完整输出
+3. 【控制token使用】避免重复和冗余表述
 
 设计目标：\n
 通过{method_display}实现：\n
