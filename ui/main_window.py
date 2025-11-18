@@ -65,7 +65,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.comboBox.currentTextChanged.connect(self.updateLabel)
         self.comboBox.setCurrentIndex(6) # 设置行业默认选中游戏开发
         self.api_key_input.setEchoMode(QLineEdit.Password)
-        self.preview_area.setReadOnly(True)
+        self.preview_area.setReadOnly(False)
         self.result_area.setReadOnly(False)
 
         self.plainTextEdit_update_talking.setReadOnly(True)
