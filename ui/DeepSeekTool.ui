@@ -96,7 +96,7 @@
         <item>
          <widget class="QLineEdit" name="module_input">
           <property name="text">
-           <string>需求背景,功能描述,触发</string>
+           <string/>
           </property>
          </widget>
         </item>
