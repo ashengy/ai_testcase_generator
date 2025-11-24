@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -8,12 +9,9 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 
 import dashscope
+from PIL import Image
 from dashscope import MultiModalConversation
 from docx import Document
-from docx.text.paragraph import Paragraph
-from docx.shape import InlineShape
-from PIL import Image
-import io
 
 
 @dataclass
@@ -481,7 +479,6 @@ class WordImageAIAnalyzer:
             print(f"删除 {output_dir} 文件夹时出错: {e}")
 
         return main_contents
-
 
 
 if __name__ == "__main__":
