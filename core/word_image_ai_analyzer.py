@@ -482,8 +482,8 @@ class WordImageAIAnalyzer:
 
 
 if __name__ == "__main__":
-    API_KEY = "your_api_key_here"
-    WORD_PATH = r"your_document.docx"  # 替换为您的Word路径
+    API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
+    WORD_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.docx"  # 替换为您的Word路径
     # 初始化分析器
     analyzer = WordImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
 
