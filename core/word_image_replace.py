@@ -39,7 +39,7 @@ def insert_image_position_with_list(
                         "run_idx": run_idx,  # run索引（段落内顺序）
                         "r_id": r_id  # 图片唯一标识
                     })
-    print(f"word共找到{len(all_images)}张图片")
+
     # 如果是空列表，但是又存在图片，则插入空的字符串进去（为了满足 是否使用AI的判断）
     if not image_replacement_list:
         for i in range(len(all_images)):
@@ -47,10 +47,11 @@ def insert_image_position_with_list(
 
         # 3. 验证替换列表长度是否足够
     if len(image_replacement_list) < len(all_images):
-        print(f"替换列表长度不足！PDF中有{len(all_images)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
         fill_num = len(all_images) - len(image_replacement_list)
         for _ in range(fill_num):
             image_replacement_list.append("")
+        print(
+                f"替换列表长度不足！PDF中有{len(all_images)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
     print(f"替换时，共找到{all_images}张图片")
 
     # 验证替换列表长度
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     ]
 
     content = insert_image_position_with_list(
-        doc_path=r"D:\Download\好友系统联系人系统屏蔽系统.docx",
+        doc_path=r"E:\test\好友系统 联系人系统 屏蔽系统.docx",
         image_replacement_list=replacements,
     )
     print(content)
