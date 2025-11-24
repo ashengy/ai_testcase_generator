@@ -113,7 +113,7 @@ if __name__ == "__main__":
     ]
 
     content = insert_image_position_with_list(
-        doc_path=r"D:\ai\释放取消.docx",
+        doc_path=r"E:\test\好友系统 联系人系统 屏蔽系统.docx",
         image_replacement_list=replacements,
     )
     print(content)
