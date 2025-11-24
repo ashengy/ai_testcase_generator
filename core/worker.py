@@ -174,7 +174,7 @@ class GenerateThread(QThread):
             self.error.emit(str(e))
 
 
-class PdfImageAnalyzer(QThread):
+class ImageAnalyzer(QThread):
     current_status = pyqtSignal(str)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
@@ -187,9 +187,10 @@ class PdfImageAnalyzer(QThread):
         self.analyzer_enable = analyzer_enable
 
     def run(self):
-        print("启动PdfImageAnalyzer", flush=True)
+        print("启动ImageAnalyzer", flush=True)
         try:
             file_type = os.path.splitext(self.file_path)[1]
+            print("查看file_type:",file_type)
             # 根据开关判断是否使用ai图片分析
             if self.analyzer_enable:
                 self.current_status.emit(f"----开始启动AI分析图片...----\n")
@@ -220,8 +221,8 @@ class PdfImageAnalyzer(QThread):
                 context = ""
             context = context.replace("◦", "")  # 把文档里不需要的符号去掉
             context = context.replace(" ", "")  # 去空格
-            print("pdf_context是", context, flush=True)
+            print("文档最终内容是", context, flush=True)
             self.finished.emit(context)
 
         except Exception as e:
-            self.error.emit(f"PdfImageAnalyzer运行异常：{e}")
+            self.error.emit(f"ImageAnalyzer运行异常：{e}")
