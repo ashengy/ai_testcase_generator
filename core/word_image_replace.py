@@ -190,7 +190,7 @@ def insert_image_position_with_list(
             final_content_parts.append(table_content)
 
     # 合并内容，用两个换行符分隔块级元素（保持原文档间距）
-    final_content = "\n\n".join(final_content_parts)
+    final_content = "\n".join(final_content_parts)
     print(f"\n替换完成！表格已保留在原位置，图片替换准确")
     return final_content
 
@@ -221,7 +221,10 @@ def process_single_paragraph(
                 key = (para_key, run_idx, blip_idx)
                 if key in replace_map:
                     replace_text = replace_map[key]
-                    para_content += f"[图片：{replace_text}]"
+                    if replace_text:
+                        para_content += f"[图片：{replace_text}]"
+                    else:
+                        para_content += "" # 无效图片，拼接空字符串
                     print(
                         f"替换成功：{position_label}→Run{run_idx + 1}→第{blip_idx + 1}张图 → [图片:{replace_text}]")
                 else:
@@ -295,8 +298,8 @@ if __name__ == "__main__":
     replacements = [
         "图1：好友系统架构图",
         "图2：联系人添加流程图",
-        "图3：表格内用户分布统计图",  # 表格内的图片（现在会在原表格位置）
-        "图4：屏蔽功能时序图",
+        "",  # 表格内的图片（现在会在原表格位置）
+        " ",
         "图5：数据存储结构图",
         "图6：表格内功能对比表",  # 另一张表格内的图片
         "图7：权限控制示意图",
@@ -307,3 +310,4 @@ if __name__ == "__main__":
         doc_path=r"D:\Download\好友系统联系人系统屏蔽系统.docx",
         image_replacement_list=replacements
     )
+    print(content)
