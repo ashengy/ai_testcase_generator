@@ -5,7 +5,7 @@ from lxml import etree
 
 def insert_image_position_with_list(
         doc_path,
-        image_replacement_list # 必传：按图片顺序替换的文字列表
+        image_replacement_list  # 必传：按图片顺序替换的文字列表
 ):
     """
     提取Word中的文字，按图片出现顺序用列表中的文字依次替换图片
@@ -14,7 +14,7 @@ def insert_image_position_with_list(
         doc_path (str)：Word文件路径
         image_replacement_list (list)：替换图片的文字列表（长度需≥图片数量）
     返回：
-        str：按文档顺序排列的文字+替换后的图片文字
+        str：按文档顺序排列的文字+替换后的图片文字，保持原有换行格式
     """
     doc = Document(doc_path)
     final_content = []
@@ -40,6 +40,20 @@ def insert_image_position_with_list(
                         "r_id": r_id  # 图片唯一标识
                     })
 
+    # 如果是空列表，但是又存在图片，则插入空的字符串进去（为了满足 是否使用AI的判断）
+    if not image_replacement_list:
+        for i in range(len(all_images)):
+            image_replacement_list.append("")
+
+        # 3. 验证替换列表长度是否足够
+    if len(image_replacement_list) < len(all_images):
+        fill_num = len(all_images) - len(image_replacement_list)
+        for _ in range(fill_num):
+            image_replacement_list.append("")
+        print(
+                f"替换列表长度不足！PDF中有{len(all_images)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
+    print(f"替换时，共找到{all_images}张图片")
+
     # 验证替换列表长度
     if len(image_replacement_list) < len(all_images):
         raise ValueError(
@@ -49,35 +63,41 @@ def insert_image_position_with_list(
 
     # 第二步：按文档顺序遍历内容，替换图片
     img_replace_idx = 0  # 替换列表的当前索引
-    for paragraph in doc.paragraphs:
-        para_content = ""
-        for run in paragraph.runs:
-            # 添加文字内容
-            if run.text:
-                para_content += run.text + " "
 
-            # 处理图片替换
+    for para_idx, paragraph in enumerate(doc.paragraphs):
+        para_content = ""
+
+        # 处理段落内的所有run
+        for run_idx, run in enumerate(paragraph.runs):
+            run_text = run.text or ""
+
+            # 检查当前run中是否有图片
             run_xml = etree.fromstring(etree.tostring(run.element))
             blip_elements = run_xml.xpath('.//a:blip', namespaces=namespaces)
-            for blip in blip_elements:
-                r_id = blip.get(qn('r:embed'))
-                if r_id and r_id in doc.part.related_parts:
-                    # 按顺序从列表中取替换文字
-                    replacement_text = image_replacement_list[img_replace_idx]
-                    para_content += replacement_text + " "
-                    img_replace_idx += 1  # 移动到下一个替换元素
 
-        # 保留段落结构
-        final_content.append(para_content.rstrip())
+            if blip_elements:
+                # 如果run中有图片，先添加文本内容，然后替换图片
+                if run_text:
+                    para_content += run_text
 
-    # # 控制台输出
-    # print("Word提取结果（文字+按顺序替换的图片文字）：")
-    # print("-" * 50)
-    # for content in final_content:
-    #     print(content)
-    # print("-" * 50)
+                # 按顺序从列表中取替换文字
+                for blip in blip_elements:
+                    r_id = blip.get(qn('r:embed'))
+                    if r_id and r_id in doc.part.related_parts:
+                        replacement_text = image_replacement_list[img_replace_idx]
+                        para_content += f"[图片:{replacement_text}]"  # 用括号标记图片位置
+                        img_replace_idx += 1
+            else:
+                # 如果没有图片，直接添加文本内容
+                if run_text:
+                    para_content += run_text
 
-    content = " ".join(final_content)
+        # 将处理好的段落内容添加到结果中
+        if para_content.strip():  # 只添加非空段落
+            final_content.append(para_content)
+
+    # 使用换行符连接各个段落，保持文档原有的段落结构
+    content = "\n".join(final_content)
     return content
 
 

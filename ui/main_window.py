@@ -60,6 +60,10 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         if not hasattr(self, 'refresh_prompt_btn'):
             self.refresh_prompt_btn = getattr(self, 'refreshPromptButton', None)
 
+        # 填充默认api key
+        self.api_key_input.setText(config.constants.DEEPSEEK_API_KEY)
+        self.lineEdit_image_api_key.setText(config.constants.IMAGE_API_KEY)
+
         # 隐藏无用控件
         self.label_module_input.hide()
         self.module_input.hide()
@@ -149,6 +153,9 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         # 添加按钮悬停时的tips
         self.refresh_prompt_btn.setToolTip("修改功能模式、设计方法后，需更新提示词")
+
+        # 添加combboBox的悬停tips
+        self.combo_kb.setToolTip("目前已支持docx和pdf")
 
     def _connect_signals(self):
         """连接所有信号和槽，集中管理，方便添加新按钮"""
@@ -939,6 +946,10 @@ Rules:
         """
         try:
             from docx import Document
+            # 检查文件是否为临时文件，否则将引起闪退
+            if os.path.basename(file_path).startswith('~$'):
+                QMessageBox.warning(self,"提示","先关闭该文档，刷新需求列表后重新选择。")
+                return
             doc = Document(file_path)
             content = {"paragraphs": [], "tables": []}
 

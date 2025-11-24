@@ -32,7 +32,7 @@
         <item>
          <widget class="QLineEdit" name="api_key_input">
           <property name="text">
-           <string>sk-8509fd7dfb9248e49334111e24141d22</string>
+           <string/>
           </property>
           <property name="echoMode">
            <enum>QLineEdit::Password</enum>
@@ -52,7 +52,7 @@
         <item>
          <widget class="QLineEdit" name="lineEdit_image_api_key">
           <property name="text">
-           <string>sk-ce93575f6e8d4a02ba15f8ab38a943a1</string>
+           <string/>
           </property>
           <property name="echoMode">
            <enum>QLineEdit::Password</enum>
