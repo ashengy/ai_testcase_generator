@@ -1,34 +1,35 @@
 import base64
 import hashlib
+import io
 import json
 import os
 import re
 import time
 from dataclasses import dataclass
 from typing import List, Dict, Any
-from io import BytesIO
 
-# 使用dashscope SDK直接调用，避免LangChain的兼容性问题
 import dashscope
-from docx import Document
 from PIL import Image
 from dashscope import MultiModalConversation
+from docx import Document
 
 
 @dataclass
 class ImagePosition:
     """图片位置信息"""
-    paragraph_index: int
-    run_index: int
+    page_num: int
+    x0: float
+    y0: float
+    x1: float
+    y1: float
     width: float
     height: float
-    image_index: int
 
 
 class WordImageAIAnalyzer:
     def __init__(self, api_key: str, model_name: str = "qwen-vl-plus"):
         """
-        初始化Word文档图片AI分析器
+        初始化Word图片AI分析器
 
         Args:
             api_key: 通义千问API密钥
@@ -38,14 +39,14 @@ class WordImageAIAnalyzer:
         self.model_name = model_name
         self.image_data = []
 
-    def extract_images_from_word(self, word_path: str, output_dir: str = "extracted_images",
+    def extract_images_from_word(self, word_path: str, output_dir: str = "extracted_word_images",
                                  min_width: int = 100, min_height: int = 100,
                                  min_file_size: int = 1024) -> List[Dict[str, Any]]:
         """
         从Word文档中提取所有图片及其位置信息，支持按尺寸和文件大小过滤
 
         Args:
-            word_path: Word文档路径
+            word_path: Word文件路径
             output_dir: 图片输出目录
             min_width: 图片最小宽度（像素）
             min_height: 图片最小高度（像素）
@@ -56,43 +57,120 @@ class WordImageAIAnalyzer:
 
         doc = Document(word_path)
         images_info = []
-        image_counter = 0
 
         print(f"开始从Word文档提取图片...")
 
-        # 遍历所有段落
-        for para_idx, paragraph in enumerate(doc.paragraphs):
-            # 遍历段落中的所有run
-            for run_idx, run in enumerate(paragraph.runs):
-                # 检查run中是否包含图片
-                if run._element.xpath('.//pic:pic'):
-                    image_counter += 1
+        # 遍历所有段落查找图片
+        for i, paragraph in enumerate(doc.paragraphs):
+            for j, run in enumerate(paragraph.runs):
+                # Word中的图片通常嵌入在run中
+                for inline_shape in run._element.xpath('.//w:drawing'):
                     try:
-                        # 获取图片元素
-                        drawing = run._element.xpath('.//pic:pic')[0]
-                        blip = drawing.xpath('.//a:blip/@r:embed')[0]
-                        image_part = doc.part.related_parts[blip]
-
                         # 获取图片数据
-                        image_data = image_part.blob
+                        blip = inline_shape.xpath('.//a:blip', namespaces={
+                            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+                            'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+                            'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                        })
 
-                        # 使用PIL打开图片获取尺寸
-                        image = Image.open(BytesIO(image_data))
-                        width, height = image.size
+                        if blip:
+                            rid = blip[0].get(
+                                '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                            if rid:
+                                part = doc.part.related_parts[rid]
+                                image_bytes = part.blob
+
+                                # 使用PIL打开图片以获取尺寸信息
+                                img = Image.open(io.BytesIO(image_bytes))
+
+                                # 检查图片尺寸是否符合要求
+                                if img.width < min_width or img.height < min_height:
+                                    print(f"跳过小尺寸图片: {img.width}x{img.height} (要求: {min_width}x{min_height})")
+                                    continue
+
+                                # 生成唯一图片ID
+                                img_hash = hashlib.md5(image_bytes).hexdigest()[:8]
+                                img_name = f"para_{i + 1}_run_{j + 1}_{img_hash}.png"
+                                img_path = os.path.join(output_dir, img_name)
+
+                                # 保存图片
+                                with open(img_path, "wb") as f:
+                                    f.write(image_bytes)
+
+                                # 检查文件大小是否符合要求
+                                file_size = os.path.getsize(img_path)
+                                if file_size < min_file_size:
+                                    print(f"跳过小文件: {file_size} bytes (要求: {min_file_size} bytes)")
+                                    os.remove(img_path)  # 删除不满足条件的文件
+                                    continue
+
+                                # 估算位置信息（Word中没有精确的位置概念）
+                                position = ImagePosition(
+                                    page_num=1,  # Word中没有页码概念，简化处理
+                                    x0=0.0,
+                                    y0=0.0,
+                                    x1=float(img.width),
+                                    y1=float(img.height),
+                                    width=float(img.width),
+                                    height=float(img.height)
+                                )
+
+                                image_info = {
+                                    "image_id": f"para_{i + 1}_run_{j + 1}",
+                                    "image_hash": img_hash,
+                                    "image_path": img_path,
+                                    "position": {
+                                        "page_num": position.page_num,
+                                        "x0": position.x0,
+                                        "y0": position.y0,
+                                        "x1": position.x1,
+                                        "y1": position.y1,
+                                        "width": position.width,
+                                        "height": position.height
+                                    },
+                                    "paragraph_index": i + 1,
+                                    "run_index": j + 1,
+                                    "file_size": file_size,
+                                    "dimensions": (img.width, img.height)
+                                }
+
+                                images_info.append(image_info)
+                                print(
+                                    f"提取图片: {image_info['image_id']} - 尺寸: {img.width}x{img.height}")
+
+                    except Exception as e:
+                        print(f"提取图片错误 (段落{i + 1}, 运行{j + 1}): {e}")
+                        continue
+
+        # 遍历所有内联形状
+        for i, shape in enumerate(doc.inline_shapes):
+            try:
+                if hasattr(shape, '_inline') and shape._inline.graphic.graphicData.pic:
+                    # 获取图片数据
+                    pic = shape._inline.graphic.graphicData.pic
+                    blip_fill = pic.blipFill
+
+                    if blip_fill and blip_fill.blip.embed:
+                        rid = blip_fill.blip.embed
+                        part = doc.part.related_parts[rid]
+                        image_bytes = part.blob
+
+                        # 使用PIL打开图片以获取尺寸信息
+                        img = Image.open(io.BytesIO(image_bytes))
 
                         # 检查图片尺寸是否符合要求
-                        if width < min_width or height < min_height:
-                            print(f"跳过小尺寸图片: {width}x{height} (要求: {min_width}x{min_height})")
+                        if img.width < min_width or img.height < min_height:
+                            print(f"跳过小尺寸图片: {img.width}x{img.height} (要求: {min_width}x{min_height})")
                             continue
 
-                        # 生成唯一图片ID和文件名
-                        img_hash = hashlib.md5(image_data).hexdigest()[:8]
-                        img_name = f"para_{para_idx + 1}_run_{run_idx + 1}_img_{image_counter}_{img_hash}.png"
+                        # 生成唯一图片ID
+                        img_hash = hashlib.md5(image_bytes).hexdigest()[:8]
+                        img_name = f"shape_{i + 1}_{img_hash}.png"
                         img_path = os.path.join(output_dir, img_name)
 
                         # 保存图片
-                        with open(img_path, 'wb') as f:
-                            f.write(image_data)
+                        with open(img_path, "wb") as f:
+                            f.write(image_bytes)
 
                         # 检查文件大小是否符合要求
                         file_size = os.path.getsize(img_path)
@@ -101,43 +179,45 @@ class WordImageAIAnalyzer:
                             os.remove(img_path)  # 删除不满足条件的文件
                             continue
 
-                        # 创建位置信息
+                        # 获取尺寸信息
+                        width = shape.width if shape.width else img.width
+                        height = shape.height if shape.height else img.height
+
                         position = ImagePosition(
-                            paragraph_index=para_idx + 1,
-                            run_index=run_idx + 1,
-                            width=width,
-                            height=height,
-                            image_index=image_counter
+                            page_num=1,
+                            x0=0.0,
+                            y0=0.0,
+                            x1=float(width),
+                            y1=float(height),
+                            width=float(width),
+                            height=float(height)
                         )
 
                         image_info = {
-                            "image_id": f"para_{para_idx + 1}_run_{run_idx + 1}_img_{image_counter}",
+                            "image_id": f"shape_{i + 1}",
                             "image_hash": img_hash,
                             "image_path": img_path,
                             "position": {
-                                "paragraph_index": position.paragraph_index,
-                                "run_index": position.run_index,
+                                "page_num": position.page_num,
+                                "x0": position.x0,
+                                "y0": position.y0,
+                                "x1": position.x1,
+                                "y1": position.y1,
                                 "width": position.width,
-                                "height": position.height,
-                                "image_index": position.image_index
+                                "height": position.height
                             },
-                            "paragraph_number": para_idx + 1,
-                            "run_number": run_idx + 1,
-                            "image_number": image_counter,
+                            "shape_index": i + 1,
                             "file_size": file_size,
-                            "dimensions": (width, height)
+                            "dimensions": (img.width, img.height)
                         }
 
                         images_info.append(image_info)
                         print(
-                            f"提取图片: {image_info['image_id']} - 位置: 第{para_idx + 1}段第{run_idx + 1}运行 - 尺寸: {width}x{height}")
+                            f"提取图片: {image_info['image_id']} - 尺寸: {img.width}x{img.height}")
 
-                    except Exception as e:
-                        print(f"提取图片错误 (段{para_idx + 1}, 运行{run_idx + 1}): {e}")
-                        continue
-
-        # 检查表格中的图片（如果需要支持表格中的图片，可以添加相关代码）
-        # 这里简化处理，只处理段落中的图片
+            except Exception as e:
+                print(f"提取图片错误 (形状{i + 1}): {e}")
+                continue
 
         self.image_data = images_info
         print(f"图片提取完成，共找到 {len(images_info)} 张图片")
@@ -171,14 +251,14 @@ class WordImageAIAnalyzer:
             # 构建提示词
             prompt = f"""=== 核心身份定位与工作要求 ===
 你是一个图片识别专家，在游戏行业深耕10年，
-请分析这张来自Word文档第{position['paragraph_index']}段第{position['run_index']}运行的图片，尺寸：{position['width']:.2f} × {position['height']:.2f}，
+，请分析这张来自Word文档的图片，尺寸：{position['width']:.2f} × {position['height']:.2f}，
 **强制要求规则（优先级最高）
-无法识别时：如果图片质量差、内容模糊、是水印、头像、或无意义元素，直接回复："无效图片，无法识别！"
-回复格式：只回复图片分析结果，绝对禁止添加任何额外话术（如"如果需要进一步分析..."等）。
+无法识别时：如果图片质量差、内容模糊、是水印、头像、或无意义元素，直接回复：“无效图片，无法识别！”
+回复格式：只回复图片分析结果，绝对禁止添加任何额外话术（如“如果需要进一步分析...”等）。
 禁止复制示例：示例内容仅作为格式参考，不可复用任何具体细节（如物品名称、颜色、数字等）。分析必须基于实际图片内容生成。
 
 **特殊要求规则
-无效图片处理：对于流程图、纯文字图、或其他非游戏界面内容，按实际元素描述，但必须遵循强制规则。如果无法识别或不符合游戏相关上下文，回复"无效图片，无法识别！"。
+无效图片处理：对于流程图、纯文字图、或其他非游戏界面内容，按实际元素描述，但必须遵循强制规则。如果无法识别或不符合游戏相关上下文，回复“无效图片，无法识别！”。
 分析重点：优先检查图片类型（如UI界面、图标、文本、模型），然后分区域描述位置、颜色、文字、交互元素等。确保描述基于视觉证据，不假设内容。
 
 **示例格式参考（仅用于结构，不可复用内容）
@@ -294,8 +374,7 @@ class WordImageAIAnalyzer:
     def _clean_json_string(self, json_str: str) -> str:
         """清理JSON字符串"""
         # 移除可能的代码块标记
-        json_str = re.sub(r'```json\s*', '', json_str)
-        json_str = re.sub(r'\s*```', '', json_str)
+        json_str = re.sub(r'', '', json_str)
         # 确保双引号
         json_str = re.sub(r"'", '"', json_str)
         # 修复常见的JSON格式问题
@@ -324,13 +403,13 @@ class WordImageAIAnalyzer:
         处理Word文档中的所有图片
 
         Args:
-            word_path: Word文档路径
+            word_path: Word文件路径
             batch_delay: 批处理延迟时间（秒）
             min_width: 图片最小宽度（像素）
             min_height: 图片最小高度（像素）
             min_file_size: 图片最小文件大小（字节）
         """
-        output_dir = "extracted_images"
+        output_dir = "extracted_word_images"
 
         # 提取所有图片（包括不符合要求的）
         all_images_info = self.extract_images_from_word(
@@ -390,7 +469,7 @@ class WordImageAIAnalyzer:
 
         print("main_contents最终结果:", main_contents)
 
-        # AI分析完成后删除extracted_images文件夹及其内容
+        # AI分析完成后删除extracted_word_images文件夹及其内容
         try:
             if os.path.exists(output_dir):
                 import shutil
@@ -403,9 +482,8 @@ class WordImageAIAnalyzer:
 
 
 if __name__ == "__main__":
-    API_KEY = "sk-ce93575f6e8d4a02ba15f8ab38a943a1"
-    WORD_PATH = r"D:\ai_case\【需求】药剂工具台.docx"  # 替换为您的Word文档路径
-
+    API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
+    WORD_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.docx"  # 替换为您的Word路径
     # 初始化分析器
     analyzer = WordImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
 
