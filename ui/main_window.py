@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
 from core.utils import chunk_text
-from core.worker import GenerateThread, PdfImageAnalyzer
+from core.worker import GenerateThread, ImageAnalyzer
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
 
@@ -1096,7 +1096,7 @@ Rules:
             # 禁用ai分析按钮，避免重复点击
             self.pushButton_start_analyzer_image.setEnabled(False)
             pdf_path = self.selected[0]
-            self.image_thread = PdfImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
+            self.image_thread = ImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
             self.image_thread.current_status.connect(self.update_talking)
             self.image_thread.finished.connect(self.on_analyzer_finished)
             self.image_thread.error.connect(self.on_generation_error)
