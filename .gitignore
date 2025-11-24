@@ -10,6 +10,6 @@ extracted_images/
 *.a
 !lib.a
 
-__pycache__/
+ui/__pycache__/
 *.pyc
 *.pyo
