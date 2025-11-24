@@ -483,6 +483,7 @@ class WordImageAIAnalyzer:
         return main_contents
 
 
+
 if __name__ == "__main__":
     API_KEY = "your_api_key_here"
     WORD_PATH = r"your_document.docx"  # 替换为您的Word路径
