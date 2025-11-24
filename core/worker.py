@@ -221,6 +221,7 @@ class ImageAnalyzer(QThread):
                 context = ""
             context = context.replace("◦", "")  # 把文档里不需要的符号去掉
             context = context.replace(" ", "")  # 去空格
+            context = context.replace("\n\n", "\n")
             print("文档最终内容是", context, flush=True)
             self.finished.emit(context)
 

@@ -10,6 +10,8 @@ extracted_images/
 *.a
 !lib.a
 
+# 忽略 pycache 目录和 .pyc/.pyo 文件
 ui/__pycache__/
+core/__pycache__/
 *.pyc
 *.pyo
