@@ -1139,13 +1139,14 @@ Rules:
 
     def json_to_excel(self, json_data, output_file):
         """
-        将JSON数据转换为Excel文件
+        将JSON数据转换为Excel文件，操作步骤中每个分号后添加换行符，并自动调整列宽和行高
         :param json_data: JSON数据（字符串或字典）
         :param output_file: 输出的Excel文件路径
         """
         try:
             import pandas as pd
             import json
+            from openpyxl.utils import get_column_letter
             # 如果输入是JSON字符串，解析为字典
             if isinstance(json_data, str):
                 data = json.loads(json_data)
@@ -1154,11 +1155,16 @@ Rules:
 
             # 如果数据是列表，直接转换为DataFrame
             if isinstance(data, list):
-                # 格式化操作步骤，list转化成str
+                # 格式化操作步骤，每个分号后添加换行符
                 for i in data:
-                    step_list = i["操作步骤"]
-                    step = ";".join(step_list)
-                    i["操作步骤"] = step
+                    if "操作步骤" in i:
+                        if isinstance(i["操作步骤"], list):
+                            # 如果是列表，每项后添加换行符
+                            step = "\n".join(i["操作步骤"])
+                            i["操作步骤"] = step
+                        elif isinstance(i["操作步骤"], str):
+                            # 如果是字符串，替换分号为换行符
+                            i["操作步骤"] = i["操作步骤"].replace("; ", ";\n")
 
                 df = pd.DataFrame(data)
             # 如果数据是字典，尝试提取其中的列表
@@ -1168,6 +1174,16 @@ Rules:
                 for key, value in data.items():
                     if isinstance(value, list):
                         list_data = value
+                        # 格式化操作步骤，每个分号后添加换行符
+                        for i in list_data:
+                            if "操作步骤" in i:
+                                if isinstance(i["操作步骤"], list):
+                                    # 如果是列表，每项后添加换行符
+                                    step = "\n".join(i["操作步骤"])
+                                    i["操作步骤"] = step
+                                elif isinstance(i["操作步骤"], str):
+                                    # 如果是字符串，替换分号为换行符
+                                    i["操作步骤"] = i["操作步骤"].replace("; ", ";\n")
                         break
                 if list_data:
                     df = pd.DataFrame(list_data)
@@ -1177,8 +1193,46 @@ Rules:
             else:
                 raise ValueError("不支持的数据格式")
 
-            # 保存为Excel文件
-            df.to_excel(output_file, index=False)
+            # 保存为Excel文件并自动调整列宽和行高
+            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='TestCases')
+
+                # 获取worksheet对象以调整列宽和行高
+                worksheet = writer.sheets['TestCases']
+
+                # 自动调整列宽
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = get_column_letter(column[0].column)
+
+                    for cell in column:
+                        try:
+                            if cell.value:
+                                # 计算单元格内容的长度
+                                cell_length = len(str(cell.value))
+                                if cell_length > max_length:
+                                    max_length = cell_length
+                        except:
+                            pass
+
+                    # 设置列宽（添加一些padding，最大不超过50）
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+
+                # 自动调整行高（基于单元格内容）
+                for row in worksheet.iter_rows():
+                    max_line_count = 1
+                    for cell in row:
+                        if cell.value:
+                            # 计算单元格中换行符的数量来确定行数
+                            line_count = str(cell.value).count('\n') + 1
+                            if line_count > max_line_count:
+                                max_line_count = line_count
+
+                    # 设置行高（默认行高约15，每行文本增加15高度）
+                    row_number = row[0].row
+                    worksheet.row_dimensions[row_number].height = max(15, min(max_line_count * 15, 100))
+
         except Exception as e:
             print(f"转换为Excel时出错: {e}")
             import traceback
