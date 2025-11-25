@@ -49,7 +49,7 @@ def extract_pdf_text_with_image_list(
                 image_replacement_list.append("")
             print(
                 f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
-        print(f"替换时，共找到{all_images_sorted}张图片")
+        print(f"替换时，共找到{len(all_images_sorted)}张图片")
 
         # 4. 遍历每一页，替换图片
         for page_num, page in enumerate(pdf.pages, 1):
@@ -97,8 +97,14 @@ def extract_pdf_text_with_image_list(
                         i for i, global_img in enumerate(all_images_sorted)
                         if global_img["img_obj"] == img and global_img["page_num"] == page_num
                     )
-                    # 获取对应的替换文字
-                    replacement_text = "\n" + image_replacement_list[img_index] + "\n"
+                    img_text= image_replacement_list[img_index]
+                    if img_text:
+                        # 获取对应的替换文字
+                        replacement_text = f"\n[图片：{img_text}]\n"
+                    else:
+                        # 无效图片直接拼接空字符串，不必声明这是一张图片
+                        replacement_text = img_text
+
                     page_image_marks.append({
                         "type": "image",
                         "content": replacement_text,
@@ -110,12 +116,12 @@ def extract_pdf_text_with_image_list(
             all_elements = text_lines + page_image_marks
             all_elements.sort(key=lambda elem: (-elem["y0"], elem["x0"]))
             # 4.4 拼接当前页内容
-            page_content = " ".join([elem["content"] for elem in all_elements])
+            page_content = "\n".join([elem["content"] for elem in all_elements])
             full_content.append(f"{page_content}")
 
     # 5. 输出结果
-    org_content = " ".join(full_content)
-    content = org_content.replace("·", "")  # 去掉多余符号（必须！）
+    org_content = "\n".join(full_content)
+    content = org_content.replace("·", "").replace("•","") # 去掉多余符号（必须！）
     return content
 
 
@@ -124,14 +130,14 @@ if __name__ == "__main__":
     # 替换列表：按PDF中图片出现的顺序依次对应
     # 替换列表：按PDF中图片出现的顺序依次对应
     API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
-    PDF_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.pdf"  # 替换为您的PDF路径
+    PDF_PATH = r"D:\Download\好友系统与联系人系统.pdf"  # 替换为您的PDF路径
     # 初始化分析器
     # analyzer = PDFImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
     # replacements = analyzer.process_pdf_images(PDF_PATH, batch_delay=1.0)
 
     pdf_content = extract_pdf_text_with_image_list(
         pdf_path=PDF_PATH,  # 替换为你的PDF路径
-        image_replacement_list=[]
+        image_replacement_list=["图片11111","图片222","","图片33333"]
     )
     print(type(pdf_content))
     print("pdf_content是\n", pdf_content)

@@ -12,11 +12,12 @@ from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
 
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
+from core.pdf_image_replace import extract_pdf_text_with_image_list
 from core.utils import chunk_text
 from core.worker import GenerateThread, ImageAnalyzer
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
-
+from core.word_image_replace import insert_image_position_with_list
 
 class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
     def __init__(self):
@@ -732,73 +733,88 @@ Rules:
 
     def update_preview(self):
         """ 更新预览内容 """
-        # self.preview_area.clear()
-        print(f"self.file_list.selectedItems():{self.file_list.selectedItems()}")
+        self.preview_area.clear()
         self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
         content = []
         all_content = ''
-        for path in self.selected:
-            raw_text = self.read_file(path)
-            # 根据文件类型处理内容
-            if path.endswith('docx'):
-                if not self.module_input.text():  # 未获取到文本标签，则使用默认清洗规则
-                    # cleaned = self.clean_text(raw_text)  # 注释掉未实现的方法
-                    content.append(raw_text)
-                else:
-                    content.append({"paragraphs": raw_text})  # 拼接数据
-            elif path.endswith('.pdf'):
-                # PDF文件直接返回文本内容，需要特殊处理
-                content.append(raw_text)  # PDF读取函数已返回正确格式
-            else:
-                content.append(raw_text)
+        if not self.selected:
+            return
+        path = self.selected[0]
+        # 检查文件是否为临时文件，否则将引起闪退
+        if os.path.basename(path).startswith('~$'):
+            QMessageBox.warning(self, "提示", "先关闭该文档，刷新需求列表后重新选择。")
+            return
+        # 注释掉下方的原有实现方案，直接复用现有方法
+        if path.endswith('docx'):
+            # 复用替换word图片的方法来获取纯文本
+            self.context = insert_image_position_with_list(path, [])
+        elif path.endswith('pdf'):
+            self.context = extract_pdf_text_with_image_list(path, [])
+        self.preview_area.setText(self.context)
 
-        # 根据文件类型更新预览内容
-        for path in self.selected:
-            if path.endswith('docx'):
-                if not self.module_input.text() and path.endswith('docx'):  # 不指定，使用默认配置进行清洗
-                    for ele in content:
-                        if isinstance(ele, dict) and "paragraphs" in ele:
-                            all_content += "\n".join(ele["paragraphs"])
-                        else:
-                            all_content += str(ele)
-                    self.context = chunk_text(all_content)  # 不输入文本标题时，也对文本进行分块
-                elif self.module_input.text() and path.endswith('docx'):  # 指定标题获取文档内容
-                    try:
-                        for ele in content:
-                            if isinstance(ele, dict) and "paragraphs" in ele:
-                                paragraph = ele['paragraphs']
-                                for key, value in paragraph.items():
-                                    all_content += f'{str(value)} \n'  # 获取指定标题内容
-                        self.context = chunk_text(all_content)
-                    except Exception as e:
-                        QMessageBox.critical(self, "预览", f"更新预览内容失败，错误信息{e}！")
-            elif path.endswith('.pdf'):
-                # 处理PDF文件内容
-                for ele in content:
-                    if isinstance(ele, dict) and "paragraphs" in ele:
-                        # 处理PDF返回的结构化数据
-                        for paragraph in ele["paragraphs"]:
-                            all_content += str(paragraph) + "\n"
-                    else:
-                        all_content += str(ele)
-                self.context = chunk_text(all_content)
-            elif path.split('.')[-1].lower() in ('txt', 'xlsx', 'md'):
-                if isinstance(content, list) and len(content) > 0:
-                    if isinstance(content[0], dict) and "paragraphs" in content[0]:
-                        all_content = "\n".join(content[0]["paragraphs"])
-                    else:
-                        all_content = content[0] if isinstance(content[0], str) else str(content[0])
-            elif path.split('.')[-1].lower() in ('json', 'yml', 'yaml'):
-                if isinstance(content, list) and len(content) > 0:
-                    all_content = content[0].get('paragraphs', '获取内容失败') if isinstance(content[0], dict) else str(
-                        content[0])
-                    self.context = self.chunk_json(all_content) if isinstance(all_content,
-                                                                              (dict, list)) else chunk_text(
-                        str(all_content))
-                    all_content = json.dumps(all_content, indent=4, ensure_ascii=False) if isinstance(all_content, (
-                        dict, list)) else str(all_content)
-
-        self.preview_area.setText(";".join(self.context))
+        # for path in self.selected:
+        #     raw_text = self.read_file(path)
+        #     # 根据文件类型处理内容
+        #     if path.endswith('docx'):
+        #         if not self.module_input.text():  # 未获取到文本标签，则使用默认清洗规则
+        #             # cleaned = self.clean_text(raw_text)  # 注释掉未实现的方法
+        #             content.append(raw_text)
+        #         else:
+        #             content.append({"paragraphs": raw_text})  # 拼接数据
+        #     elif path.endswith('.pdf'):
+        #         # PDF文件直接返回文本内容，需要特殊处理
+        #         content.append(raw_text)  # PDF读取函数已返回正确格式
+        #     else:
+        #         content.append(raw_text)
+        #
+        # # 根据文件类型更新预览内容
+        # for path in self.selected:
+        #     if path.endswith('docx'):
+        #         if not self.module_input.text() and path.endswith('docx'):  # 不指定，使用默认配置进行清洗
+        #             for ele in content:
+        #                 print("docx文档ele:", ele)
+        #                 if isinstance(ele, dict) and "paragraphs" in ele:
+        #                     print("docx文档ele[paragraphs]:", ele["paragraphs"])
+        #                     all_content += "\n".join(ele["paragraphs"])
+        #                 else:
+        #                     all_content += str(ele)
+        #             self.context = chunk_text(all_content)  # 不输入文本标题时，也对文本进行分块
+        #         elif self.module_input.text() and path.endswith('docx'):  # 指定标题获取文档内容
+        #             try:
+        #                 for ele in content:
+        #                     if isinstance(ele, dict) and "paragraphs" in ele:
+        #                         paragraph = ele['paragraphs']
+        #                         for key, value in paragraph.items():
+        #                             all_content += f'{str(value)} \n'  # 获取指定标题内容
+        #                 self.context = chunk_text(all_content)
+        #             except Exception as e:
+        #                 QMessageBox.critical(self, "预览", f"更新预览内容失败，错误信息{e}！")
+        #     elif path.endswith('.pdf'):
+        #         # 处理PDF文件内容
+        #         for ele in content:
+        #             if isinstance(ele, dict) and "paragraphs" in ele:
+        #                 # 处理PDF返回的结构化数据
+        #                 for paragraph in ele["paragraphs"]:
+        #                     all_content += str(paragraph) + "\n"
+        #             else:
+        #                 all_content += str(ele)
+        #         self.context = chunk_text(all_content)
+        #     elif path.split('.')[-1].lower() in ('txt', 'xlsx', 'md'):
+        #         if isinstance(content, list) and len(content) > 0:
+        #             if isinstance(content[0], dict) and "paragraphs" in content[0]:
+        #                 all_content = "\n".join(content[0]["paragraphs"])
+        #             else:
+        #                 all_content = content[0] if isinstance(content[0], str) else str(content[0])
+        #     elif path.split('.')[-1].lower() in ('json', 'yml', 'yaml'):
+        #         if isinstance(content, list) and len(content) > 0:
+        #             all_content = content[0].get('paragraphs', '获取内容失败') if isinstance(content[0], dict) else str(
+        #                 content[0])
+        #             self.context = self.chunk_json(all_content) if isinstance(all_content,
+        #                                                                       (dict, list)) else chunk_text(
+        #                 str(all_content))
+        #             all_content = json.dumps(all_content, indent=4, ensure_ascii=False) if isinstance(all_content, (
+        #                 dict, list)) else str(all_content)
+        #
 
     def read_file(self, file_path):
         """ 多格式文件读取 """
@@ -944,10 +960,6 @@ Rules:
         """
         try:
             from docx import Document
-            # 检查文件是否为临时文件，否则将引起闪退
-            if os.path.basename(file_path).startswith('~$'):
-                QMessageBox.warning(self,"提示","先关闭该文档，刷新需求列表后重新选择。")
-                return
             doc = Document(file_path)
             content = {"paragraphs": [], "tables": []}
 
@@ -1088,6 +1100,7 @@ Rules:
 
     def start_image_analyzer(self):
         try:
+            self.plainTextEdit_update_talking.clear()
             self.analyzer_enable = self.checkBox_analyzer_enable.isChecked()
             self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
             # 获取image API Key

@@ -1,9 +1,10 @@
+import io
+from typing import List, Tuple, Dict
+
+from PIL import Image
 from docx import Document
 from docx.oxml.ns import qn
 from lxml import etree
-from PIL import Image
-import io
-from typing import List, Tuple, Dict, Any
 
 
 def insert_image_position_with_list(
@@ -48,7 +49,6 @@ def insert_image_position_with_list(
     r_id_set = set()
     total_images = 0
     global_image_idx = 0
-
 
     for block_order, (block_type, block_inner_idx, block_elem) in enumerate(block_elements):
         if block_type == 'paragraph':
@@ -224,7 +224,7 @@ def process_single_paragraph(
                     if replace_text:
                         para_content += f"[图片：{replace_text}]"
                     else:
-                        para_content += "" # 无效图片，拼接空字符串
+                        para_content += ""  # 无效图片，拼接空字符串
                     print(
                         f"替换成功：{position_label}→Run{run_idx + 1}→第{blip_idx + 1}张图 → [图片:{replace_text}]")
                 else:
