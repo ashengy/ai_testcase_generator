@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -7,10 +8,10 @@ import time
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
-# 使用dashscope SDK直接调用，避免LangChain的兼容性问题
 import dashscope
-import fitz  # PyMuPDF
+from PIL import Image
 from dashscope import MultiModalConversation
+from docx import Document
 
 
 @dataclass
@@ -25,10 +26,10 @@ class ImagePosition:
     height: float
 
 
-class PDFImageAIAnalyzer:
+class WordImageAIAnalyzer:
     def __init__(self, api_key: str, model_name: str = "qwen-vl-plus"):
         """
-        初始化PDF图片AI分析器
+        初始化Word图片AI分析器
 
         Args:
             api_key: 通义千问API密钥
@@ -38,14 +39,14 @@ class PDFImageAIAnalyzer:
         self.model_name = model_name
         self.image_data = []
 
-    def extract_images_from_pdf(self, pdf_path: str, output_dir: str = "extracted_images",
-                                min_width: int = 50, min_height: int = 50,
-                                min_file_size: int = 1024) -> List[Dict[str, Any]]:
+    def extract_images_from_word(self, word_path: str, output_dir: str = "extracted_word_images",
+                                 min_width: int = 100, min_height: int = 100,
+                                 min_file_size: int = 1024) -> List[Dict[str, Any]]:
         """
-        从PDF中提取所有图片及其位置信息，支持按尺寸和文件大小过滤
+        从Word文档中提取所有图片及其位置信息，支持按尺寸和文件大小过滤
 
         Args:
-            pdf_path: PDF文件路径
+            word_path: Word文件路径
             output_dir: 图片输出目录
             min_width: 图片最小宽度（像素）
             min_height: 图片最小高度（像素）
@@ -54,87 +55,170 @@ class PDFImageAIAnalyzer:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        doc = fitz.open(pdf_path)
+        doc = Document(word_path)
         images_info = []
 
-        print(f"开始从PDF提取图片...")
+        print(f"开始从Word文档提取图片...")
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            image_list = page.get_images()
+        # 遍历所有段落查找图片
+        for i, paragraph in enumerate(doc.paragraphs):
+            for j, run in enumerate(paragraph.runs):
+                # Word中的图片通常嵌入在run中
+                for inline_shape in run._element.xpath('.//w:drawing'):
+                    try:
+                        # 获取图片数据
+                        blip = inline_shape.xpath('.//a:blip', namespaces={
+                            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+                            'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+                            'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                        })
 
-            for img_index, img in enumerate(image_list):
-                try:
-                    xref = img[0]
-                    pix = fitz.Pixmap(doc, xref)
+                        if blip:
+                            rid = blip[0].get(
+                                '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                            if rid:
+                                part = doc.part.related_parts[rid]
+                                image_bytes = part.blob
 
-                    if pix.n - pix.alpha < 4:  # 检查是否是RGB
+                                # 使用PIL打开图片以获取尺寸信息
+                                img = Image.open(io.BytesIO(image_bytes))
+
+                                # 检查图片尺寸是否符合要求
+                                if img.width < min_width or img.height < min_height:
+                                    print(f"跳过小尺寸图片: {img.width}x{img.height} (要求: {min_width}x{min_height})")
+                                    continue
+
+                                # 生成唯一图片ID
+                                img_hash = hashlib.md5(image_bytes).hexdigest()[:8]
+                                img_name = f"para_{i + 1}_run_{j + 1}_{img_hash}.png"
+                                img_path = os.path.join(output_dir, img_name)
+
+                                # 保存图片
+                                with open(img_path, "wb") as f:
+                                    f.write(image_bytes)
+
+                                # 检查文件大小是否符合要求
+                                file_size = os.path.getsize(img_path)
+                                if file_size < min_file_size:
+                                    print(f"跳过小文件: {file_size} bytes (要求: {min_file_size} bytes)")
+                                    os.remove(img_path)  # 删除不满足条件的文件
+                                    continue
+
+                                # 估算位置信息（Word中没有精确的位置概念）
+                                position = ImagePosition(
+                                    page_num=1,  # Word中没有页码概念，简化处理
+                                    x0=0.0,
+                                    y0=0.0,
+                                    x1=float(img.width),
+                                    y1=float(img.height),
+                                    width=float(img.width),
+                                    height=float(img.height)
+                                )
+
+                                image_info = {
+                                    "image_id": f"para_{i + 1}_run_{j + 1}",
+                                    "image_hash": img_hash,
+                                    "image_path": img_path,
+                                    "position": {
+                                        "page_num": position.page_num,
+                                        "x0": position.x0,
+                                        "y0": position.y0,
+                                        "x1": position.x1,
+                                        "y1": position.y1,
+                                        "width": position.width,
+                                        "height": position.height
+                                    },
+                                    "paragraph_index": i + 1,
+                                    "run_index": j + 1,
+                                    "file_size": file_size,
+                                    "dimensions": (img.width, img.height)
+                                }
+
+                                images_info.append(image_info)
+                                print(
+                                    f"提取图片: {image_info['image_id']} - 尺寸: {img.width}x{img.height}")
+
+                    except Exception as e:
+                        print(f"提取图片错误 (段落{i + 1}, 运行{j + 1}): {e}")
+                        continue
+
+        # 遍历所有内联形状
+        for i, shape in enumerate(doc.inline_shapes):
+            try:
+                if hasattr(shape, '_inline') and shape._inline.graphic.graphicData.pic:
+                    # 获取图片数据
+                    pic = shape._inline.graphic.graphicData.pic
+                    blip_fill = pic.blipFill
+
+                    if blip_fill and blip_fill.blip.embed:
+                        rid = blip_fill.blip.embed
+                        part = doc.part.related_parts[rid]
+                        image_bytes = part.blob
+
+                        # 使用PIL打开图片以获取尺寸信息
+                        img = Image.open(io.BytesIO(image_bytes))
+
                         # 检查图片尺寸是否符合要求
-                        if pix.width < min_width or pix.height < min_height:
-                            print(f"跳过小尺寸图片: {pix.width}x{pix.height} (要求: {min_width}x{min_height})")
-                            pix = None
+                        if img.width < min_width or img.height < min_height:
+                            print(f"跳过小尺寸图片: {img.width}x{img.height} (要求: {min_width}x{min_height})")
                             continue
 
                         # 生成唯一图片ID
-                        img_hash = hashlib.md5(pix.samples).hexdigest()[:8]
-                        img_name = f"page_{page_num + 1}_img_{img_index + 1}_{img_hash}.png"
+                        img_hash = hashlib.md5(image_bytes).hexdigest()[:8]
+                        img_name = f"shape_{i + 1}_{img_hash}.png"
                         img_path = os.path.join(output_dir, img_name)
 
                         # 保存图片
-                        pix.save(img_path)
+                        with open(img_path, "wb") as f:
+                            f.write(image_bytes)
 
                         # 检查文件大小是否符合要求
                         file_size = os.path.getsize(img_path)
                         if file_size < min_file_size:
                             print(f"跳过小文件: {file_size} bytes (要求: {min_file_size} bytes)")
                             os.remove(img_path)  # 删除不满足条件的文件
-                            pix = None
                             continue
 
-                        # 获取图片位置信息
-                        image_instances = page.get_image_rects(xref)
+                        # 获取尺寸信息
+                        width = shape.width if shape.width else img.width
+                        height = shape.height if shape.height else img.height
 
-                        for instance in image_instances:
-                            position = ImagePosition(
-                                page_num=page_num + 1,
-                                x0=instance.x0,
-                                y0=instance.y0,
-                                x1=instance.x1,
-                                y1=instance.y1,
-                                width=instance.width,
-                                height=instance.height
-                            )
+                        position = ImagePosition(
+                            page_num=1,
+                            x0=0.0,
+                            y0=0.0,
+                            x1=float(width),
+                            y1=float(height),
+                            width=float(width),
+                            height=float(height)
+                        )
 
-                            image_info = {
-                                "image_id": f"page_{page_num + 1}_img_{img_index + 1}",
-                                "image_hash": img_hash,
-                                "image_path": img_path,
-                                "position": {
-                                    "page_num": position.page_num,
-                                    "x0": position.x0,
-                                    "y0": position.y0,
-                                    "x1": position.x1,
-                                    "y1": position.y1,
-                                    "width": position.width,
-                                    "height": position.height
-                                },
-                                "page_number": page_num + 1,
-                                "image_index": img_index + 1,
-                                "file_size": file_size,
-                                "dimensions": (pix.width, pix.height)
-                            }
+                        image_info = {
+                            "image_id": f"shape_{i + 1}",
+                            "image_hash": img_hash,
+                            "image_path": img_path,
+                            "position": {
+                                "page_num": position.page_num,
+                                "x0": position.x0,
+                                "y0": position.y0,
+                                "x1": position.x1,
+                                "y1": position.y1,
+                                "width": position.width,
+                                "height": position.height
+                            },
+                            "shape_index": i + 1,
+                            "file_size": file_size,
+                            "dimensions": (img.width, img.height)
+                        }
 
-                            images_info.append(image_info)
-                            print(
-                                f"提取图片: {image_info['image_id']} - 位置: 第{page_num + 1}页 ({position.x0:.1f}, {position.y0:.1f}) - 尺寸: {pix.width}x{pix.height}")
+                        images_info.append(image_info)
+                        print(
+                            f"提取图片: {image_info['image_id']} - 尺寸: {img.width}x{img.height}")
 
-                    pix = None  # 释放内存
+            except Exception as e:
+                print(f"提取图片错误 (形状{i + 1}): {e}")
+                continue
 
-                except Exception as e:
-                    print(f"提取图片错误 (页{page_num + 1}, 图{img_index + 1}): {e}")
-                    continue
-
-        doc.close()
         self.image_data = images_info
         print(f"图片提取完成，共找到 {len(images_info)} 张图片")
         return images_info
@@ -167,7 +251,7 @@ class PDFImageAIAnalyzer:
             # 构建提示词
             prompt = f"""=== 核心身份定位与工作要求 ===
 你是一个图片识别专家，在游戏行业深耕10年，
-，请分析这张来自PDF文档第{position['page_num']}页的图片，位置坐标：({position['x0']:.2f}, {position['y0']:.2f}) 到 ({position['x1']:.2f}, {position['y1']:.2f})，尺寸：{position['width']:.2f} × {position['height']:.2f}，
+，请分析这张来自Word文档的图片，尺寸：{position['width']:.2f} × {position['height']:.2f}，
 **强制要求规则（优先级最高）
 无法识别时：如果图片质量差、内容模糊、是水印、头像、或无意义元素，直接回复：“无效图片，无法识别！”
 回复格式：只回复图片分析结果，绝对禁止添加任何额外话术（如“如果需要进一步分析...”等）。
@@ -189,7 +273,7 @@ class PDFImageAIAnalyzer:
 [材料显示和操作按钮]。
 其他细节：界面风格、文字信息、交互提示。
 **附加指令
-所有描述必须基于图片实际内容，使用中性语言（如“可能表示”而非肯定断言）。
+所有描述必须基于图片实际内容，使用中性语言（如"可能表示"而非肯定断言）。
 如果图片是流程图或文字图，描述其结构、箭头、文本框等元素，不强制使用游戏术语。
 """
 
@@ -290,8 +374,7 @@ class PDFImageAIAnalyzer:
     def _clean_json_string(self, json_str: str) -> str:
         """清理JSON字符串"""
         # 移除可能的代码块标记
-        json_str = re.sub(r'```json\s*', '', json_str)
-        json_str = re.sub(r'\s*```', '', json_str)
+        json_str = re.sub(r'', '', json_str)
         # 确保双引号
         json_str = re.sub(r"'", '"', json_str)
         # 修复常见的JSON格式问题
@@ -313,24 +396,24 @@ class PDFImageAIAnalyzer:
             "related_suggestions": ""
         }
 
-    def process_pdf_images(self, pdf_path: str, batch_delay: float = 1.0,
-                           min_width: int = 50, min_height: int = 50,
-                           min_file_size: int = 1024) -> list[str]:
+    def process_word_images(self, word_path: str, batch_delay: float = 1.0,
+                            min_width: int = 100, min_height: int = 100,
+                            min_file_size: int = 1024) -> list[str]:
         """
-        处理PDF中的所有图片
+        处理Word文档中的所有图片
 
         Args:
-            pdf_path: PDF文件路径
+            word_path: Word文件路径
             batch_delay: 批处理延迟时间（秒）
             min_width: 图片最小宽度（像素）
             min_height: 图片最小高度（像素）
             min_file_size: 图片最小文件大小（字节）
         """
-        output_dir = "extracted_images"
+        output_dir = "extracted_word_images"
 
         # 提取所有图片（包括不符合要求的）
-        all_images_info = self.extract_images_from_pdf(
-            pdf_path,
+        all_images_info = self.extract_images_from_word(
+            word_path,
             output_dir=output_dir,
             min_width=0,  # 先提取所有图片，不过滤
             min_height=0,
@@ -341,8 +424,8 @@ class PDFImageAIAnalyzer:
             return []
 
         # 筛选出符合要求的图片
-        valid_images_info = self.extract_images_from_pdf(
-            pdf_path,
+        valid_images_info = self.extract_images_from_word(
+            word_path,
             output_dir=output_dir,
             min_width=min_width,
             min_height=min_height,
@@ -376,7 +459,6 @@ class PDFImageAIAnalyzer:
                 else:
                     content = main_content
             else:
-
                 content = ""
 
             main_contents.append(content)
@@ -387,7 +469,7 @@ class PDFImageAIAnalyzer:
 
         print("main_contents最终结果:", main_contents)
 
-        # AI分析完成后删除extracted_images文件夹及其内容
+        # AI分析完成后删除extracted_word_images文件夹及其内容
         try:
             if os.path.exists(output_dir):
                 import shutil
@@ -401,8 +483,8 @@ class PDFImageAIAnalyzer:
 
 if __name__ == "__main__":
     API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
-    PDF_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.pdf"  # 替换为您的PDF路径
+    WORD_PATH = r"D:\Download\好友系统联系人系统屏蔽系统.docx"  # 替换为您的Word路径
     # 初始化分析器
-    analyzer = PDFImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
+    analyzer = WordImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
 
-    results = analyzer.process_pdf_images(PDF_PATH, batch_delay=1.0)
+    results = analyzer.process_word_images(WORD_PATH, batch_delay=1.0)

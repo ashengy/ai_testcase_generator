@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
 from core.utils import chunk_text
-from core.worker import GenerateThread, PdfImageAnalyzer
+from core.worker import GenerateThread, ImageAnalyzer
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
 
@@ -59,6 +59,19 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
             self.generate_btn = getattr(self, 'generateButton', None)
         if not hasattr(self, 'refresh_prompt_btn'):
             self.refresh_prompt_btn = getattr(self, 'refreshPromptButton', None)
+
+        # 填充默认api key
+        self.api_key_input.setText(config.constants.DEEPSEEK_API_KEY)
+        self.lineEdit_image_api_key.setText(config.constants.IMAGE_API_KEY)
+
+        # 隐藏无用控件
+        self.label_module_input.hide()
+        self.module_input.hide()
+        self.label_module_input_table.hide()
+        self.module_input_table.hide()
+        self.label_module_input_pic.hide()
+        self.module_input_pic.hide()
+        self.label.hide()
 
         self.param_choice_combo.setCurrentIndex(0)
         self.func_choice_combo.setCurrentIndex(0)
@@ -140,6 +153,9 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         # 添加按钮悬停时的tips
         self.refresh_prompt_btn.setToolTip("修改功能模式、设计方法后，需更新提示词")
+
+        # 添加combboBox的悬停tips
+        self.combo_kb.setToolTip("目前已支持docx和pdf")
 
     def _connect_signals(self):
         """连接所有信号和槽，集中管理，方便添加新按钮"""
@@ -436,10 +452,10 @@ Rules:
 1. 格式：结构化JSON,必须严格遵守JSON语法规范,严格遵守示例中的格式，不擅自修改任何结构，包括但不限于新增字段
 2. 不要使用JavaScript语法（如.repeat()方法）
 3. 对于需要重复字符的情况，请直接写出完整字符串，例如："aaaaaaa..."而不是"a".repeat(7)
-4. 字符串长度限制测试时，请使用描述性文字如"256个字符的a"，而不是实际生成256个字符
+4. 字符串长度限制测试时，请使用描述性文字如"256个字符的a"，而不是实际生成256个
 5. 字段(不需要写优先级 字段 也不需要写 测试数据 字段）：
    - 用例编号：<模块缩写>-<3位序号>
-   - 用例标题：<测试目标> [正例/反例]
+   - 用例标题：<测试点> [正例/反例/设计方法]
    - 前置条件：初始化状态描述
    - 操作步骤：带编号的明确步骤
    - 预期结果：可验证的断言
@@ -700,7 +716,7 @@ Rules:
 
             # 优化文件过滤逻辑
             # valid_extensions = ('.docx', '.xlsx', '.md', '.txt', '.pdf', '.json', 'yml', 'yaml')
-            valid_extensions = ('.pdf')
+            valid_extensions = ('.docx','.pdf')
             for fname in sorted(os.listdir(directory)):
                 full_path = os.path.join(directory, fname)
                 if os.path.isfile(full_path) and fname.lower().endswith(valid_extensions):
@@ -928,6 +944,10 @@ Rules:
         """
         try:
             from docx import Document
+            # 检查文件是否为临时文件，否则将引起闪退
+            if os.path.basename(file_path).startswith('~$'):
+                QMessageBox.warning(self,"提示","先关闭该文档，刷新需求列表后重新选择。")
+                return
             doc = Document(file_path)
             content = {"paragraphs": [], "tables": []}
 
@@ -1085,7 +1105,7 @@ Rules:
             # 禁用ai分析按钮，避免重复点击
             self.pushButton_start_analyzer_image.setEnabled(False)
             pdf_path = self.selected[0]
-            self.image_thread = PdfImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
+            self.image_thread = ImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
             self.image_thread.current_status.connect(self.update_talking)
             self.image_thread.finished.connect(self.on_analyzer_finished)
             self.image_thread.error.connect(self.on_generation_error)
@@ -1273,8 +1293,11 @@ Rules:
         for i in design_methods:
             item = QtGui.QStandardItem(i)
             item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
-            # Qt.CheckState.checked 设置默认全部勾选
-            item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+            if i == "因果图测试":
+                item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+            else:
+                # Qt.CheckState.checked 设置默认勾选的项
+                item.setData(Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
             self.custom_model.appendRow(item)
         self.comboBox_design_method.setModel(self.custom_model)
         self.comboBox_design_method.setCurrentIndex(-1)
@@ -1295,6 +1318,7 @@ Rules:
                 checked_list.append(self.custom_model.item(i).text())
                 # 把列表里的内容，显示在下拉框的文本框里，注意只能传入字符串，所以要把列表转化成字符串
                 self.comboBox_design_method.setEditText(",".join(checked_list))
+        self.generate_testcase_prompt()
         # 此处需要增加一个判断，当没有勾选任何项时，设置combox的索引为-1
         # 因为没有任何选项时，combox的文本框里会随便索引一个内容显示
         if not checked_list:  # 空列表在布尔表达式会被视为False，非空为True

@@ -1,6 +1,7 @@
 import pdfplumber
 from core.pdf_image_ai_analyzer import PDFImageAIAnalyzer
 
+
 def extract_pdf_text_with_image_list(
         pdf_path,
         image_replacement_list  # 必传：按图片顺序替换的文字列表（如["图1", "图2",...]）
@@ -46,7 +47,8 @@ def extract_pdf_text_with_image_list(
             fill_num = len(all_images_sorted) - len(image_replacement_list)
             for _ in range(fill_num):
                 image_replacement_list.append("")
-            print(f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
+            print(
+                f"替换列表长度不足！PDF中有{len(all_images_sorted)}张图片，但列表仅提供{len(image_replacement_list)}个元素")
         print(f"替换时，共找到{all_images_sorted}张图片")
 
         # 4. 遍历每一页，替换图片
@@ -113,7 +115,7 @@ def extract_pdf_text_with_image_list(
 
     # 5. 输出结果
     org_content = " ".join(full_content)
-    content = org_content.replace("·","")  #去掉多余符号（必须！）
+    content = org_content.replace("·", "")  # 去掉多余符号（必须！）
     return content
 
 
@@ -121,8 +123,8 @@ def extract_pdf_text_with_image_list(
 if __name__ == "__main__":
     # 替换列表：按PDF中图片出现的顺序依次对应
     # 替换列表：按PDF中图片出现的顺序依次对应
-    API_KEY = "sk-ce93575f6e8d4a02ba15f8ab38a943a1"
-    PDF_PATH = r"D:\ai\神兵.pdf"  # 替换为您的PDF路径
+    API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
+    PDF_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.pdf"  # 替换为您的PDF路径
     # 初始化分析器
     # analyzer = PDFImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
     # replacements = analyzer.process_pdf_images(PDF_PATH, batch_delay=1.0)
@@ -132,4 +134,4 @@ if __name__ == "__main__":
         image_replacement_list=[]
     )
     print(type(pdf_content))
-    print("pdf_content是\n",pdf_content)
+    print("pdf_content是\n", pdf_content)
