@@ -98,17 +98,51 @@ class GenerateThread(QThread):
         print(f"思考字数：{len(reasoning_content)}")
         return answer_content
 
-    def extract_json_objects(self, text):
-        """获取回复中的json字符串并进行整合"""
+    def extract_json_objects(self,text):
+        """
+        获取回复中的JSON字符串并解析为JSON对象，支持多规则匹配
+        :param text: 原始文本（包含各类JSON代码块/列表结构）
+        :return: 解析成功的JSON对象列表（去重后）
+        """
         json_objects = []
-        matches = re.findall(r'```json\s*([\s\S]*?)```', text, re.DOTALL)
-        for match in matches:
-            try:
-                json_objects.append(json.loads(match))
-            except json.JSONDecodeError as e:
-                print(f"Error decoding JSON: {e}")
-                print(match)
-                continue
+        # 存储已解析的JSON字符串（用于去重）
+        parsed_json_strs = set()
+
+        # 重构匹配规则：优先匹配完整格式，捕获完整JSON字符串
+        json_match_rules = {
+            # 规则1：完整闭合的JSON块（捕获完整JSON内容，剔除```json和```）
+            "json_block_full_quote": r'```json\s*([\s\S]*?)\s*```',
+            # 规则2：结尾未闭合的JSON块（捕获完整JSON内容，剔除```json）
+            "json_block_unclosed_end": r'```json\s*([\s\S]*?)\s*$',
+            # 规则3：仅结尾有```的JSON（收紧开头，避免匹配无关内容）
+            "json_block_mismatched_quotes": r'[^\`]\s*([\s\S]*?)\s*```',
+            # 规则4：列表嵌套字典（捕获完整列表字符串，而非内部片段）
+            "json_list_dict_pattern": r'(\[\s*\{[\s\S]*?\}\s*(,\s*\{[\s\S]*?\})*\s*\])'
+        }
+
+        for rule_name, pattern in json_match_rules.items():
+            matches = re.findall(pattern, text, re.DOTALL)
+            # 遍历每个匹配项
+            for match in matches:
+                # 处理元组（多捕获组场景）
+                if isinstance(match, tuple):
+                    match = match[0]
+                # 清洗空白
+                match_clean = match.strip()
+                if not match_clean:
+                    continue
+
+                # 尝试解析JSON
+                try:
+                    json_obj = json.loads(match_clean)
+                    # 去重：将JSON对象转为有序字符串，避免重复添加
+                    json_str = json.dumps(json_obj, sort_keys=True)
+                    if json_str not in parsed_json_strs:
+                        parsed_json_strs.add(json_str)
+                        json_objects.append(json_obj)
+                except json.JSONDecodeError as e:
+                    print(f"解析ai回复格式时，出现异常：{e}")
+                    continue
 
         return json_objects
 
@@ -159,8 +193,7 @@ class GenerateThread(QThread):
                     print(f"{context_chunk}推理结果异常！")
                 # 本轮推理完成时 同步进度
                 self.current_stage.emit(f"当前推理进度：{n + 1}/{count}")
-
-            if 'json' in all_result_str:
+            if all_result_str:
                 print("开始整合json")
                 all_result_str = self.extract_json_objects(all_result_str)
                 print("json整合完成:", all_result_str)
