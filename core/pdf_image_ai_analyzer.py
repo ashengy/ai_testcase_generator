@@ -39,7 +39,7 @@ class PDFImageAIAnalyzer:
         self.image_data = []
 
     def extract_images_from_pdf(self, pdf_path: str, output_dir: str = "extracted_images",
-                                min_width: int = 100, min_height: int = 100,
+                                min_width: int = 50, min_height: int = 50,
                                 min_file_size: int = 1024) -> List[Dict[str, Any]]:
         """
         从PDF中提取所有图片及其位置信息，支持按尺寸和文件大小过滤
@@ -67,7 +67,6 @@ class PDFImageAIAnalyzer:
                 try:
                     xref = img[0]
                     pix = fitz.Pixmap(doc, xref)
-
 
                     if pix.n - pix.alpha < 4:  # 检查是否是RGB
                         # 检查图片尺寸是否符合要求
@@ -315,7 +314,7 @@ class PDFImageAIAnalyzer:
         }
 
     def process_pdf_images(self, pdf_path: str, batch_delay: float = 1.0,
-                           min_width: int = 100, min_height: int = 100,
+                           min_width: int = 50, min_height: int = 50,
                            min_file_size: int = 1024) -> list[str]:
         """
         处理PDF中的所有图片

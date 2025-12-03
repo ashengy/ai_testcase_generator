@@ -549,10 +549,9 @@ def chunk_text(text, chunk_size=8000, overlap=500):
     返回：
     - list: 分块后的文本列表
     """
-    print("开始对文本进行分块,字数：",len(text))
+    # print("开始对文本进行分块：",text)
     if text:
         clear_text = text.replace("·","") #去掉文档里的多余符号
-        clear_text = text.replace(" ", "")  # 去掉文档里的多余符号
         chunks = []
         start = 0
         text_length = len(clear_text)

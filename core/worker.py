@@ -1,6 +1,5 @@
 # core/worker.py
 import json
-import os
 import re
 
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -8,8 +7,6 @@ from openai import OpenAI
 
 from core.pdf_image_ai_analyzer import PDFImageAIAnalyzer
 from core.pdf_image_replace import extract_pdf_text_with_image_list
-from core.word_image_ai_analyzer import WordImageAIAnalyzer
-from core.word_image_replace import insert_image_position_with_list
 
 
 class GenerateThread(QThread):
@@ -19,7 +16,7 @@ class GenerateThread(QThread):
     current_stage = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, prompt, context, job_area, func_type, design_method, api_key=None):
+    def __init__(self, prompt, context, job_area, func_type, design_method, api_key=None, ):
         super().__init__()
         self.prompt = prompt
         self.job_area = job_area
@@ -207,33 +204,26 @@ class GenerateThread(QThread):
             self.error.emit(str(e))
 
 
-class ImageAnalyzer(QThread):
+class PdfImageAnalyzer(QThread):
     current_status = pyqtSignal(str)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, file_path, batch_delay, image_api_key, analyzer_enable: bool):
+    def __init__(self, pdf_path, batch_delay, image_api_key, analyzer_enable: bool):
         super().__init__()
         self.image_api_key = image_api_key
-        self.file_path = file_path
+        self.pdf_path = pdf_path
         self.batch_delay = batch_delay
         self.analyzer_enable = analyzer_enable
 
     def run(self):
-        print("启动ImageAnalyzer", flush=True)
+        print("启动PdfImageAnalyzer", flush=True)
         try:
-            file_type = os.path.splitext(self.file_path)[1]
-            print("查看file_type:",file_type)
             # 根据开关判断是否使用ai图片分析
             if self.analyzer_enable:
                 self.current_status.emit(f"----开始启动AI分析图片...----\n")
-                # 根据文件类型判断pdf or docx
-                if file_type == ".pdf":
-                    analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
-                    replacements = analyzer.process_pdf_images(self.file_path, batch_delay=self.batch_delay)
-                elif file_type == ".docx":
-                    analyzer = WordImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
-                    replacements = analyzer.process_word_images(self.file_path, batch_delay=self.batch_delay)
+                analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
+                replacements = analyzer.process_pdf_images(self.pdf_path, batch_delay=self.batch_delay)
                 for i, v in enumerate(replacements):
                     if v == "":
                         v = "无效图片，已过滤"
@@ -243,20 +233,13 @@ class ImageAnalyzer(QThread):
             else:
                 # 不使用ai分析直接返回空列表(已在extract_pdf_text_with_image_list兼容了有图片但是传入列表为空的情况）
                 replacements = []
-            if file_type == ".pdf":
-                # 传入要替换的图片文字结果的列表
-                context = extract_pdf_text_with_image_list(self.file_path,  # 替换为你的PDF路径
-                                                           image_replacement_list=replacements)
-            elif file_type == ".docx":
-                context = insert_image_position_with_list(self.file_path,  # 替换为你的PDF路径
-                                                          image_replacement_list=replacements)
-            else:
-                context = ""
-            context = context.replace("◦", "")  # 把文档里不需要的符号去掉
-            context = context.replace(" ", "")  # 去空格
-            context = context.replace("\n\n", "\n")
-            print("文档最终内容是", context, flush=True)
-            self.finished.emit(context)
-
+            # 传入要替换的图片文字结果的列表
+            pdf_context = extract_pdf_text_with_image_list(pdf_path=self.pdf_path,  # 替换为你的PDF路径
+                                                           image_replacement_list=replacements
+                                                           )
+            pdf_context = pdf_context.replace("◦", "")  # 把文档里不需要的符号去掉
+            pdf_context = pdf_context.replace(" ", "")  # 去空格
+            print("pdf_context是", pdf_context, flush=True)
+            self.finished.emit(pdf_context)
         except Exception as e:
-            self.error.emit(f"ImageAnalyzer运行异常：{e}")
+            self.error.emit(f"PdfImageAnalyzer运行异常：{e}")
