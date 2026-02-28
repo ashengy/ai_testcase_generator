@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Union
 
 from PyQt5.QtCore import QThread, pyqtSignal
 from openai import OpenAI
-
+from core.utils import normalize_data
 from core.pdf_image_ai_analyzer import PDFImageAIAnalyzer
 from core.pdf_image_replace import extract_pdf_text_with_image_list
 from core.word_image_ai_analyzer import WordImageAIAnalyzer
@@ -493,6 +493,9 @@ class GenerateThread(QThread):
             if not isinstance(data, list):
                 data = [data] if isinstance(data, dict) else []
                 print(f"将数据转换为列表，长度: {len(data)}")
+
+           # 处理多层嵌套的源数据(第二次保护）
+            data = normalize_data(data)
 
             # 展平所有测试用例
             flat_cases = []

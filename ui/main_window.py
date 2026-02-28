@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
 from core.pdf_image_replace import extract_pdf_text_with_image_list
-from core.utils import chunk_text
+from core.utils import chunk_text,normalize_data
 from core.worker import GenerateThread, ImageAnalyzer
 from ui.ui_deepseektool import Ui_DeepSeekTool
 from ui.ui_style import load_stylesheet
@@ -450,17 +450,18 @@ Rules:
 
 输出要求：
 0. 当回复token即将达到上限时，不要截断输出，不满足完整用例结构的测试用例直接废弃该条，一定要确保回复的结构是完整的。
-1. 格式：结构化JSON,必须严格遵守JSON语法规范,严格遵守示例中的格式，不擅自修改任何结构，包括但不限于新增字段
+1. 格式：结构化JSON,必须严格遵守JSON语法规范,严格遵守示例中的格式，不擅自修改任何结构，不允许新增字段
 2. 不要使用JavaScript语法（如.repeat()方法）
 3. 对于需要重复字符的情况，请直接写出完整字符串，例如："aaaaaaa..."而不是"a".repeat(7)
 4. 字符串长度限制测试时，请使用描述性文字如"256个字符的a"，而不是实际生成256个
-5. 字段(不需要写优先级 字段 也不需要写 测试数据 字段）：
+5. 强制严格要求，只允许出现用例编号、用例标题、前置条件、操作步骤、预期结果这5个字段，且顺序是强制要求(不需要写优先级 字段 也不需要写 测试数据 字段）：
    - 用例编号：<模块缩写>-<3位序号>
    - 用例标题：<测试点> [正例/反例/设计方法]
    - 前置条件：初始化状态描述
    - 操作步骤：带编号的明确步骤
    - 预期结果：可验证的断言
 6.在最终回复的内容一开始先回复```json，回复完成后再多回复内容```，因为开始的```json和末尾的```我需要用来之后的数据格式处理。
+7.最终回复的格式示例如下```json[完整的字典,完整的字典]```
 生成步骤：
 1. 参数建模 → 2. 场景分析 → 3. 用例生成 → 4. 交叉校验
 
@@ -1152,6 +1153,9 @@ Rules:
                 data = json.loads(json_data)
             else:
                 data = json_data
+
+            # 处理多层嵌套的源数据
+            data = normalize_data(data)
 
             # 如果数据是列表，直接转换为DataFrame
             if isinstance(data, list):

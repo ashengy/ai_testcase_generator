@@ -564,3 +564,23 @@ def chunk_text(text, chunk_size=8000, overlap=500):
             start += chunk_size - overlap
         print(f"分块完成，共生成了 {len(chunks)} 个块。")
         return chunks
+
+
+def normalize_data(data):
+    """
+    统一数据格式，将列表嵌套多层字典格式转换为列表嵌套一层字典格式
+    :param data: 输入数据[{key:[{dict1},{dict2},{dict3}]}]
+    :return: 标准化后[{dict1},{dict2},{dict3}]
+    """
+    # 首先检查输入是否为列表，且非空（基础校验）
+    if not isinstance(data, list) or len(data) == 0:
+        return []
+
+    first_item = data[0]
+    # 严格的data2格式判定条件（缺一不可）
+    if (isinstance(first_item, dict) and
+            len(first_item) == 1 and
+            isinstance(next(iter(first_item.values())), list)):
+        return next(iter(first_item.values()))
+
+    return data
