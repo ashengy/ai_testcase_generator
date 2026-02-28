@@ -579,7 +579,6 @@ def normalize_data(data):
     first_item = data[0]
     # 严格的data2格式判定条件（缺一不可）
     if (isinstance(first_item, dict) and
-            len(first_item) == 1 and
             isinstance(next(iter(first_item.values())), list)):
         return next(iter(first_item.values()))
 
