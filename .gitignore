@@ -19,3 +19,4 @@ core/__pycache__/
 *.pyc
 *.pyo
 *.spec
+*.iml
