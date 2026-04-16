@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
                              QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
-                             QApplication)
+                             QApplication, QFrame, QGraphicsDropShadowEffect)
 
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
@@ -55,6 +55,8 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         """ 初始化界面 """
         self.setupUi(self)
         self.setGeometry(300, 200, 1400, 900)
+        self.setMinimumSize(1280, 820)
+        self.setWindowTitle("AI 测试用例生成工作台")
         # 按钮别名：如果新UI中已有这些属性则不需要设置
         if not hasattr(self, 'generate_btn'):
             self.generate_btn = getattr(self, 'generateButton', None)
@@ -90,6 +92,7 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         # 窗口初始化时加载设置保存路径
         self.load_saved_paths()
+        self._beautify_ui()
         self.prompt_input.setText("Role: 测试用例设计专家\n\n"
                                   "Rules:\n\n"
                                   "设计目标：\n"
@@ -151,6 +154,90 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
 
         # 添加combboBox的悬停tips
         self.combo_kb.setToolTip("目前已支持docx和pdf")
+
+    def _beautify_ui(self):
+        """通过运行时设置优化视觉层次，不改动核心交互逻辑。"""
+        self.centralwidget.setObjectName("appSurface")
+        self.statusbar.setSizeGripEnabled(False)
+
+        # 顶层布局留白更充足，界面更像工作台而不是表单堆叠。
+        self.verticalLayout_3.setContentsMargins(18, 18, 18, 18)
+        self.verticalLayout_3.setSpacing(14)
+
+        for layout in [
+            self.verticalLayout_1,
+            self.horizontalLayout_3,
+            self.horizontalLayout_4,
+            self.horizontalLayout_5,
+            self.horizontalLayout_6,
+            self.horizontalLayout_7,
+            self.horizontalLayout_10,
+            self.horizontalLayout,
+        ]:
+            layout.setSpacing(10)
+
+        for label in [
+            self.label_api_key,
+            self.label_image_api_key,
+            self.label_doc_list,
+            self.label_doc_preview,
+            self.label_design_method,
+            self.label_industry,
+            self.label_func_choice,
+            self.label_param_choice,
+            self.label_export,
+            self.label_prompt,
+            self.label_result,
+        ]:
+            label.setProperty("sectionLabel", True)
+
+        for panel in [self.file_list, self.preview_area, self.prompt_input, self.result_area, self.plainTextEdit_update_talking]:
+            panel.setProperty("panel", True)
+
+        self.file_list.setProperty("densePanel", True)
+        self.combo_kb.setProperty("primaryInput", True)
+        self.comboBox_design_method.setProperty("primaryInput", True)
+        self.label_stage.setProperty("statusBadge", True)
+        self.label.setProperty("hintLabel", True)
+
+        self.btn_add_kb.setProperty("secondaryButton", True)
+        self.btn_refresh.setProperty("secondaryButton", True)
+        self.btn_select_all.setProperty("secondaryButton", True)
+        self.btn_clear_all.setProperty("secondaryButton", True)
+        self.refresh_prompt_btn.setProperty("accentButton", True)
+        self.pushButton_start_analyzer_image.setProperty("accentButton", True)
+        self.export_btn.setProperty("successButton", True)
+        self.pushButton_stop_generate.setProperty("dangerButton", True)
+
+        self.api_key_input.setPlaceholderText("输入 DeepSeek API Key")
+        self.lineEdit_image_api_key.setPlaceholderText("输入图片分析 API Key")
+        self.combo_kb.setPlaceholderText("选择或切换需求目录")
+        self.preview_area.setPlaceholderText("选择需求文件后，这里会显示提取的文档内容。")
+        self.prompt_input.setPlaceholderText("这里会自动生成提示词，也可以手动微调。")
+        self.result_area.setPlaceholderText("点击“开始推理”后，这里会展示生成结果。")
+        self.plainTextEdit_update_talking.setPlaceholderText("这里会实时输出推理过程和日志。")
+
+        self.file_list.setAlternatingRowColors(True)
+        self.file_list.setFrameShape(QFrame.NoFrame)
+        self.preview_area.setFrameShape(QFrame.NoFrame)
+        self.prompt_input.setFrameShape(QFrame.NoFrame)
+        self.result_area.setFrameShape(QFrame.NoFrame)
+        self.plainTextEdit_update_talking.setFrameShape(QFrame.NoFrame)
+
+        self._apply_panel_shadow(self.file_list)
+        self._apply_panel_shadow(self.preview_area)
+        self._apply_panel_shadow(self.prompt_input)
+        self._apply_panel_shadow(self.result_area)
+        self._apply_panel_shadow(self.plainTextEdit_update_talking)
+
+        self.statusBar().showMessage("工作台已就绪，可先选择需求目录开始使用。", 5000)
+
+    def _apply_panel_shadow(self, widget):
+        effect = QGraphicsDropShadowEffect(self)
+        effect.setBlurRadius(28)
+        effect.setOffset(0, 8)
+        effect.setColor(QtGui.QColor(15, 23, 42, 28))
+        widget.setGraphicsEffect(effect)
 
     def _connect_signals(self):
         """连接所有信号和槽，集中管理，方便添加新按钮"""
