@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (QMainWindow, QAbstractItemView,
                              QLineEdit, QFileDialog, QMessageBox, QListWidgetItem,
-                             QApplication, QFrame, QGraphicsDropShadowEffect)
+                             QApplication, QFrame, QGraphicsDropShadowEffect, QDialog)
 
 import config.constants
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT, CLEAN_FLAG, design_methods
@@ -27,6 +27,13 @@ class DeepSeekTool(QMainWindow, Ui_DeepSeekTool):
         self.settings = QSettings("soc", "Ai-Testcase")
         self.context = None
         self.context_chunks = []
+        # 预解析缓存：避免重复解析同一个 docx/pdf 导致预览卡顿
+        # key: 文件绝对路径, value: 预览区应显示/用于后续生成的文本
+        self._context_cache = {}
+        # 记录最近一次执行过 AI 图片分析的文件，方便把分析结果写回缓存
+        self._last_analyzed_path = None
+        # Ai图片分析期间是否允许用户点击“开始推理”
+        self._generate_was_enabled = True
         self.func_type = None
         self.module_input_pic = None
         self.api_key = ""  # 添加API Key属性
@@ -766,8 +773,6 @@ Rules:
         """ 更新预览内容 """
         self.preview_area.clear()
         self.selected = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
-        content = []
-        all_content = ''
         if not self.selected:
             return
         path = self.selected[0]
@@ -775,12 +780,24 @@ Rules:
         if os.path.basename(path).startswith('~$'):
             QMessageBox.warning(self, "提示", "先关闭该文档，刷新需求列表后重新选择。")
             return
+
+        # 命中缓存则直接展示
+        cached = self._context_cache.get(path)
+        if cached is not None:
+            self.context = cached
+            self.preview_area.setText(self.context)
+            return
+
         # 注释掉下方的原有实现方案，直接复用现有方法
         if path.endswith('docx'):
             # 复用替换word图片的方法来获取纯文本
             self.context = insert_image_position_with_list(path, [])
         elif path.endswith('pdf'):
             self.context = extract_pdf_text_with_image_list(path, [])
+        else:
+            self.context = ""
+
+        self._context_cache[path] = self.context
         self.preview_area.setText(self.context)
 
         # for path in self.selected:
@@ -1088,10 +1105,17 @@ Rules:
         self.thread.error.connect(self.on_generation_error)
         self.thread.current_stage.connect(self.update_generate_stage)
 
-        if not self.thread.isRunning() and self.generateButton.text() == "开始推理":
-            self.thread.start()
-            if self.generateButton.text() == "开始推理":
+        try:
+            if (not self.thread.isRunning()) and self.generateButton.text() == "开始推理":
                 self.generateButton.setText("推理中...")
+                self.thread.start()
+        except Exception as e:
+            # 启动失败时恢复 UI 状态，避免按钮卡死/鼠标转圈不恢复
+            QMessageBox.critical(self, "启动失败", f"创建推理任务失败:\n{e}")
+            self.generate_btn.setEnabled(True)
+            self.generateButton.setText("开始推理")
+            self.label_stage.setText("无进行中的推理")
+            QApplication.restoreOverrideCursor()
 
     def on_generation_finished(self, result):
         """ 根据AI回答的内容，显示到结果组件中，修改相关组件状态 """
@@ -1149,6 +1173,12 @@ Rules:
             # 禁用ai分析按钮，避免重复点击
             self.pushButton_start_analyzer_image.setEnabled(False)
             pdf_path = self.selected[0]
+            self._last_analyzed_path = pdf_path
+
+            # 图片分析期间禁用“开始推理”，避免两套异步任务抢占同一个预览/状态
+            self._generate_was_enabled = self.generate_btn.isEnabled()
+            self.generate_btn.setEnabled(False)
+
             self.image_thread = ImageAnalyzer(pdf_path,batch_delay=1.0,image_api_key=self.image_api_key,analyzer_enable=self.analyzer_enable)
             self.image_thread.current_status.connect(self.update_talking)
             self.image_thread.finished.connect(self.on_analyzer_finished)
@@ -1163,10 +1193,61 @@ Rules:
 
     def on_analyzer_finished(self,data):
         self.preview_area.setText(data) # 更新预览内容，把图片分析后
+        self.context = data
+        if self._last_analyzed_path:
+            # 把分析后的结果写回缓存，避免用户重新选回同一文件时被旧预览覆盖
+            self._context_cache[self._last_analyzed_path] = data
         self.pushButton_start_analyzer_image.setEnabled(True)
+        self.generate_btn.setEnabled(self._generate_was_enabled)
         self.generateButton.setText("开始推理")
         # 分析完毕给，给一个弹框提示去内容预览里检查图片分析是否正
         QMessageBox.information(self,"ai分析完成","检查分析结果是否正确后，再点击开始推理")
+
+    def _try_parse_json_from_text(self, text):
+        """
+        兼容 AI 输出文本的 JSON 提取：
+        - 允许带 ```json ... ``` 代码块
+        - 允许直接是纯 JSON
+        - 允许 JSON 前后夹杂少量说明文字（尽量切片解析）
+        """
+        if not isinstance(text, str):
+            return text
+
+        import re
+        import json
+
+        raw = text.strip()
+        if not raw:
+            return None
+
+        candidates = []
+        # 优先提取 code block 内容
+        codeblock_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw, flags=re.IGNORECASE)
+        if codeblock_match:
+            candidates.append(codeblock_match.group(1).strip())
+        # 其次尝试直接解析整段
+        candidates.append(raw)
+
+        # 再次兜底：从第一个 '{' 或 '[' 切到最后一个对应括号
+        start_obj = raw.find("{")
+        start_arr = raw.find("[")
+        start_candidates = [i for i in [start_obj, start_arr] if i != -1]
+        if start_candidates:
+            start = min(start_candidates)
+            if raw[start] == "{":
+                end = raw.rfind("}")
+            else:
+                end = raw.rfind("]")
+            if end != -1 and end > start:
+                candidates.append(raw[start:end + 1].strip())
+
+        for candidate in candidates:
+            try:
+                return json.loads(candidate)
+            except Exception:
+                continue
+
+        return None
 
     def json_to_excel(self, json_data, output_file):
         """
@@ -1177,10 +1258,14 @@ Rules:
         try:
             import pandas as pd
             import json
+            import math
             from openpyxl.utils import get_column_letter
+            from openpyxl.styles import Alignment
             # 如果输入是JSON字符串，解析为字典
             if isinstance(json_data, str):
-                data = json.loads(json_data)
+                data = self._try_parse_json_from_text(json_data)
+                if data is None:
+                    raise ValueError("导出XLSX失败：结果内容无法解析为有效JSON（可能缺少/多余格式包装）。")
             else:
                 data = json_data
 
@@ -1191,10 +1276,10 @@ Rules:
             if isinstance(data, list):
                 # 格式化操作步骤，每个分号后添加换行符
                 for i in data:
-                    if "操作步骤" in i:
+                    if isinstance(i, dict) and "操作步骤" in i:
                         if isinstance(i["操作步骤"], list):
                             # 如果是列表，每项后添加换行符
-                            step = "\n".join(i["操作步骤"])
+                            step = "\n".join([str(x) for x in i["操作步骤"]])
                             i["操作步骤"] = step
                         elif isinstance(i["操作步骤"], str):
                             # 如果是字符串，替换分号为换行符
@@ -1210,10 +1295,9 @@ Rules:
                         list_data = value
                         # 格式化操作步骤，每个分号后添加换行符
                         for i in list_data:
-                            if "操作步骤" in i:
+                            if isinstance(i, dict) and "操作步骤" in i:
                                 if isinstance(i["操作步骤"], list):
-                                    # 如果是列表，每项后添加换行符
-                                    step = "\n".join(i["操作步骤"])
+                                    step = "\n".join([str(x) for x in i["操作步骤"]])
                                     i["操作步骤"] = step
                                 elif isinstance(i["操作步骤"], str):
                                     # 如果是字符串，替换分号为换行符
@@ -1234,38 +1318,60 @@ Rules:
                 # 获取worksheet对象以调整列宽和行高
                 worksheet = writer.sheets['TestCases']
 
-                # 自动调整列宽
+                # 1) 自动调整列宽（放宽上限，避免中文长句被挤）
+                col_widths = {}  # column letter -> width
                 for column in worksheet.columns:
                     max_length = 0
                     column_letter = get_column_letter(column[0].column)
-
                     for cell in column:
+                        if cell.value is None:
+                            continue
                         try:
-                            if cell.value:
-                                # 计算单元格内容的长度
-                                cell_length = len(str(cell.value))
-                                if cell_length > max_length:
-                                    max_length = cell_length
-                        except:
-                            pass
-
-                    # 设置列宽（添加一些padding，最大不超过50）
-                    adjusted_width = min(max_length + 2, 50)
+                            cell_length = len(str(cell.value))
+                            if cell_length > max_length:
+                                max_length = cell_length
+                        except Exception:
+                            continue
+                    # Excel 列宽单位近似为“字符数”，给一些 padding，适度上限
+                    adjusted_width = min(max_length + 2, 120)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
+                    col_widths[column_letter] = adjusted_width
 
-                # 自动调整行高（基于单元格内容）
+                # 2) 强制换行 + 更稳的行高估算（同时考虑：显式换行 与 自动换行）
+                #    Excel 的行高上限约 409，这里给到最大可用值，尽量保证不截断。
+                MAX_EXCEL_ROW_HEIGHT = 409
+                DEFAULT_ROW_HEIGHT = 15
+                LINE_HEIGHT = 15
+
                 for row in worksheet.iter_rows():
-                    max_line_count = 1
-                    for cell in row:
-                        if cell.value:
-                            # 计算单元格中换行符的数量来确定行数
-                            line_count = str(cell.value).count('\n') + 1
-                            if line_count > max_line_count:
-                                max_line_count = line_count
-
-                    # 设置行高（默认行高约15，每行文本增加15高度）
+                    max_lines = 1
                     row_number = row[0].row
-                    worksheet.row_dimensions[row_number].height = max(15, min(max_line_count * 15, 100))
+
+                    for cell in row:
+                        if cell.value is None:
+                            continue
+
+                        text = str(cell.value)
+
+                        # 显式换行优先：如果内容里已有 '\n'，就按其行数计算
+                        if '\n' in text:
+                            lines = text.count('\n') + 1
+                        else:
+                            # 估算自动换行行数：字符数 / 每行可容纳字符数
+                            # 列宽=120左右时，每行大概可容纳的字符数更接近“列宽本身”，这里做个系数微调
+                            col_letter = get_column_letter(cell.column)
+                            width = col_widths.get(col_letter, 30)
+                            chars_per_line = max(int(width * 1.1), 10)
+                            lines = int(math.ceil(len(text) / chars_per_line))
+
+                        max_lines = max(max_lines, lines)
+
+                        # 强制 wrap，让 Excel 真正按估算换行展示
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+                    worksheet.row_dimensions[row_number].height = min(
+                        MAX_EXCEL_ROW_HEIGHT, max(DEFAULT_ROW_HEIGHT, max_lines * LINE_HEIGHT)
+                    )
 
         except Exception as e:
             print(f"转换为Excel时出错: {e}")
@@ -1278,33 +1384,87 @@ Rules:
             QMessageBox.warning(self, "提示", "暂无导出内容，等待结果生成后导出")
             return
 
-        path, _ = QFileDialog.getSaveFileName(
-            self, "保存结果",
-            filter=self.get_export_filters()
-        )
-        if path:
-            try:
-                content = self.result_area.toPlainText()
-                if path.endswith('.docx'):
-                    from docx import Document
-                    doc = Document()
-                    doc.add_paragraph(content)
-                    doc.save(path)
-                elif path.endswith('.md'):
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(content)
-                elif path.endswith(".json"):
-                    with open(path, 'w', encoding='utf-8') as file:
-                        file.write(content)
-                elif path.endswith(".xlsx"):
-                    self.json_to_excel(content, path)
-                else:  # txt
-                    with open(path, 'w', encoding='utf-8') as f:
-                        f.write(content)
+        # 基于“需求列表”选中的文件名生成默认导出文件名
+        selected_paths = [item.data(Qt.UserRole) for item in self.file_list.selectedItems()]
+        if selected_paths:
+            first_path = selected_paths[0]
+            base_name = os.path.splitext(os.path.basename(first_path))[0]
+            if len(selected_paths) > 1:
+                base_name = f"{base_name}_等{len(selected_paths)}个"
+            default_dir = os.path.dirname(first_path)
+        else:
+            base_name = "导出结果"
+            default_dir = os.getcwd()
 
-                QMessageBox.information(self, "导出成功", "文件已保存！")
-            except Exception as e:
-                QMessageBox.warning(self, "导出失败", str(e))
+        filter_str = self.get_export_filters()
+        # 根据当前 filter 决定后缀
+        ext_map = {
+            "Excel Files (*.xlsx)": ".xlsx",
+            "Word Documents (*.docx)": ".docx",
+            "Text Files (*.txt)": ".txt",
+            "Markdown Files (*.md)": ".md",
+            "JSON Files (*.json)": ".json",
+        }
+        ext = ext_map.get(filter_str, ".txt")
+
+        default_full_path = os.path.join(default_dir, f"{base_name}_导出{ext}")
+
+        dlg = QFileDialog(self, "保存结果")
+        dlg.setAcceptMode(QFileDialog.AcceptSave)
+        dlg.setFileMode(QFileDialog.AnyFile)
+        dlg.setNameFilter(filter_str)
+        dlg.selectFile(default_full_path)
+        if default_dir and os.path.exists(default_dir):
+            dlg.setDirectory(default_dir)
+
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        path = dlg.selectedFiles()[0] if dlg.selectedFiles() else ""
+        if not path:
+            return
+
+        try:
+            content = self.result_area.toPlainText()
+            real_ext = os.path.splitext(path)[1].lower()
+
+            # JSON / XLSX 尝试从文本中提取有效 JSON（兼容 ```json 包装）
+            parsed_obj = None
+            if real_ext in [".json", ".xlsx"]:
+                parsed_obj = self._try_parse_json_from_text(content)
+
+            if real_ext == '.docx':
+                from docx import Document
+                doc = Document()
+                # 如果是 JSON 结果，导出前做一次格式化，阅读体验更好
+                if parsed_obj is not None:
+                    doc.add_paragraph(json.dumps(parsed_obj, indent=2, ensure_ascii=False))
+                else:
+                    doc.add_paragraph(content)
+                doc.save(path)
+            elif real_ext == '.md':
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+            elif real_ext == ".json":
+                with open(path, 'w', encoding='utf-8') as file:
+                    if parsed_obj is not None:
+                        file.write(json.dumps(parsed_obj, indent=2, ensure_ascii=False))
+                    else:
+                        # 兜底：仍然写出原内容（同时提示用户可能不是合法 JSON）
+                        file.write(content)
+                        QMessageBox.warning(self, "警告", "结果内容未能解析为合法 JSON：已将原文本保存为 .json 文件。")
+            elif real_ext == ".xlsx":
+                if parsed_obj is None:
+                    QMessageBox.warning(self, "导出失败", "结果内容无法解析为有效 JSON，无法导出 XLSX。")
+                    return
+                self.json_to_excel(parsed_obj, path)
+            else:  # txt
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+            QMessageBox.information(self, "导出成功", "文件已保存！")
+        except Exception as e:
+            QMessageBox.warning(self, "导出失败", str(e))
 
     def get_export_filters(self):
         """ 获取导出文件格式过滤器 """
