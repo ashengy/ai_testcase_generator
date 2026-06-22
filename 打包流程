@@ -1,2 +1,3 @@
 # 可以打出带有icon的包
 # 终端执行pyinstaller .\Ai-TestCase.spec
+# & "C:\Users\admin\AppData\Local\Python\pythoncore-3.14-64\Scripts\pyinstaller.exe" .\Ai-TestCase.spec --upx-dir "C:\aitest\upx-5.0.2-win64"
