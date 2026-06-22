@@ -336,6 +336,16 @@
           <string>汽车电子</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>轻量肉鸽游戏</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>休闲卡牌SLG游戏</string>
+         </property>
+        </item>
        </widget>
       </item>
       <item>

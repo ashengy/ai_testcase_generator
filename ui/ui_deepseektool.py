@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'ui/DeepSeekTool.ui'
+# Form implementation generated from reading ui file 'D:\ai_testcase_generator-master\ui\DeepSeekTool.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.11
 #
@@ -169,6 +169,8 @@ class Ui_DeepSeekTool(object):
         self.comboBox.addItem("")
         self.comboBox.addItem("")
         self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
         self.horizontalLayout_4.addWidget(self.comboBox)
         self.label_func_choice = QtWidgets.QLabel(self.centralwidget)
         self.label_func_choice.setObjectName("label_func_choice")
@@ -306,6 +308,8 @@ class Ui_DeepSeekTool(object):
         self.comboBox.setItemText(9, _translate("DeepSeekTool", "大数据"))
         self.comboBox.setItemText(10, _translate("DeepSeekTool", "云计算"))
         self.comboBox.setItemText(11, _translate("DeepSeekTool", "汽车电子"))
+        self.comboBox.setItemText(12, _translate("DeepSeekTool", "轻量肉鸽游戏"))
+        self.comboBox.setItemText(13, _translate("DeepSeekTool", "休闲卡牌SLG游戏"))
         self.label_func_choice.setText(_translate("DeepSeekTool", "功能模式:"))
         self.param_choice_combo.setItemText(0, _translate("DeepSeekTool", "文档"))
         self.param_choice_combo.setItemText(1, _translate("DeepSeekTool", "参数输入"))

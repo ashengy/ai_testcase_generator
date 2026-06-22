@@ -5,12 +5,14 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 
-# 使用dashscope SDK直接调用，避免LangChain的兼容性问题
 import dashscope
 import fitz  # PyMuPDF
 from dashscope import MultiModalConversation
+
+# 设置自定义API地址
+dashscope.base_http_api_url = "https://llm-d0m2gz4edvtcfioz.cn-beijing.maas.aliyuncs.com/api/v1"
 
 
 @dataclass
@@ -26,17 +28,19 @@ class ImagePosition:
 
 
 class PDFImageAIAnalyzer:
-    def __init__(self, api_key: str, model_name: str = "qwen-vl-plus"):
+    def __init__(self, api_key: str, model_name: str = "qwen3.7-plus", progress_callback: Optional[Callable] = None):
         """
         初始化PDF图片AI分析器
 
         Args:
             api_key: 通义千问API密钥
             model_name: 模型名称
+            progress_callback: 进度回调函数，签名为 (current: int, total: int, message: str) -> None
         """
-        dashscope.api_key = api_key
+        self.api_key = api_key
         self.model_name = model_name
         self.image_data = []
+        self.progress_callback = progress_callback
 
     def extract_images_from_pdf(self, pdf_path: str, output_dir: str = "extracted_images",
                                 min_width: int = 50, min_height: int = 50,
@@ -193,7 +197,9 @@ class PDFImageAIAnalyzer:
 如果图片是流程图或文字图，描述其结构、箭头、文本框等元素，不强制使用游戏术语。
 """
 
-            # 使用dashscope直接调用多模态对话API
+            # 使用dashscope直接调用多模态对话API（带重试）
+            print(f"开始AI分析图片: {image_info['image_id']}")
+
             messages = [
                 {
                     "role": "user",
@@ -208,23 +214,40 @@ class PDFImageAIAnalyzer:
                 }
             ]
 
-            print(f"开始AI分析图片: {image_info['image_id']}")
+            # 重试机制
+            max_retries = 3
+            retry_delay = 3
+            last_error = None
 
-            response = MultiModalConversation.call(
-                model=self.model_name,
-                messages=messages
-            )
+            for attempt in range(max_retries):
+                try:
+                    response = dashscope.MultiModalConversation.call(
+                        api_key=self.api_key,
+                        model=self.model_name,
+                        messages=messages
+                    )
 
-            if response.status_code == 200:
-                result_text = response.output.choices[0].message.content[0]['text']
-                analysis_result = self._parse_ai_response(result_text)
-                analysis_result["analysis_status"] = "success"
-                print(f"完成AI分析: {image_info['image_id']}")
-                return analysis_result
-            else:
-                error_msg = f"API调用失败: {response.code} - {response.message}"
-                print(f"AI分析图片错误 {image_info['image_id']}: {error_msg}")
-                return self._create_error_result(error_msg)
+                    if response.status_code == 200:
+                        result_text = response.output.choices[0].message.content[0]['text']
+                        analysis_result = self._parse_ai_response(result_text)
+                        analysis_result["analysis_status"] = "success"
+                        print(f"完成AI分析: {image_info['image_id']}")
+                        return analysis_result
+                    else:
+                        error_msg = f"API调用失败: {response.code} - {response.message}"
+                        print(f"AI分析图片错误 {image_info['image_id']}: {error_msg}")
+                        return self._create_error_result(error_msg)
+
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e)
+                    if attempt < max_retries - 1:
+                        print(f"连接错误: {error_str}，{retry_delay}秒后重试 ({attempt + 1}/{max_retries})...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # 指数退避
+                    else:
+                        print(f"重试次数用尽: {error_str}")
+                        raise last_error
 
         except Exception as e:
             print(f"AI分析图片错误 {image_info['image_id']}: {e}")
@@ -359,7 +382,12 @@ class PDFImageAIAnalyzer:
         # 为每张图片处理结果（符合要求的进行AI分析，不符合的用占位符）
         for i, image_info in enumerate(all_images_info):
             image_id = image_info["image_id"]
-            print(f"处理进度: {i + 1}/{len(all_images_info)} - {image_id}")
+            progress_msg = f"处理进度: {i + 1}/{len(all_images_info)} - {image_id}"
+            print(progress_msg)
+            
+            # 触发进度回调
+            if self.progress_callback:
+                self.progress_callback(i + 1, len(all_images_info), progress_msg)
 
             # 检查图片是否符合尺寸要求
             if image_id in valid_image_ids:
@@ -400,9 +428,9 @@ class PDFImageAIAnalyzer:
 
 
 if __name__ == "__main__":
-    API_KEY = "sk-08dc332b317b49bb9b91ddf09b4f183a"
-    PDF_PATH = r"E:\test\好友系统 联系人系统 屏蔽系统.pdf"  # 替换为您的PDF路径
+    API_KEY = "sk-ws-H.RPEPLLP.fD4F.MEQCIA88ip8vDpWoWPX1PcwweOrImDqS4a24TtT9OTGf_RrnAiBq9rF6LqBDBam4VuFSv_Y4kmyko8Uz91z2eT1APvKfSA"
+    PDF_PATH = r"D:\test"  # 替换为您的PDF路径
     # 初始化分析器
-    analyzer = PDFImageAIAnalyzer(api_key=API_KEY, model_name="qwen-vl-plus")
+    analyzer = PDFImageAIAnalyzer(api_key=API_KEY, model_name="qwen3.7-plus")
 
     results = analyzer.process_pdf_images(PDF_PATH, batch_delay=1.0)

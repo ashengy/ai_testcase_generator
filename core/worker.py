@@ -32,7 +32,7 @@ class GenerateThread(QThread):
     def generate_cases(self, chunk_data):
         # 初始化OpenAI客户端
         client = OpenAI(
-            api_key=self.api_key if self.api_key else 'sk-8509fd7dfb9248e49334111e24141d22',  # 使用传入的API Key
+            api_key=self.api_key if self.api_key else 'sk-a41204eaeb2e491da73af0c55eb35716',  # 使用传入的API Key
             base_url='https://api.deepseek.com',
         )
 
@@ -43,7 +43,7 @@ class GenerateThread(QThread):
         # 创建聊天完成请求
         print("开始跟AI进行会话.........")
         completion = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-v4-flash",
             messages=[
                 {'role': 'user', 'content': f'所在行业:  {self.job_area}；'
                                             f'文档内容： {chunk_data}； '
@@ -599,6 +599,7 @@ class ImageAnalyzer(QThread):
     current_status = pyqtSignal(str)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
+    progress = pyqtSignal(int, int, str)  # (current, total, message)
 
     def __init__(self, file_path, batch_delay, image_api_key, analyzer_enable: bool):
         super().__init__()
@@ -615,12 +616,17 @@ class ImageAnalyzer(QThread):
             # 根据开关判断是否使用ai图片分析
             if self.analyzer_enable:
                 self.current_status.emit(f"----开始启动AI分析图片...----\n")
+                # 创建进度回调函数
+                def progress_callback(current, total, message):
+                    self.progress.emit(current, total, message)
+                    self.current_status.emit(f"[进度 {current}/{total}] {message}\n")
+                
                 # 根据文件类型判断pdf or docx
                 if file_type == ".pdf":
-                    analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
+                    analyzer = PDFImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen3.7-plus", progress_callback=progress_callback)
                     replacements = analyzer.process_pdf_images(self.file_path, batch_delay=self.batch_delay)
                 elif file_type == ".docx":
-                    analyzer = WordImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen-vl-plus")
+                    analyzer = WordImageAIAnalyzer(api_key=self.image_api_key, model_name="qwen3.7-plus", progress_callback=progress_callback)
                     replacements = analyzer.process_word_images(self.file_path, batch_delay=self.batch_delay)
                 for i, v in enumerate(replacements):
                     if v == "":

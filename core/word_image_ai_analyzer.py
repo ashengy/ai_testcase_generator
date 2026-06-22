@@ -6,7 +6,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 
 import dashscope
 from PIL import Image
@@ -27,17 +27,19 @@ class ImagePosition:
 
 
 class WordImageAIAnalyzer:
-    def __init__(self, api_key: str, model_name: str = "qwen-vl-plus"):
+    def __init__(self, api_key: str, model_name: str = "qwen3.7-plus", progress_callback: Optional[Callable] = None):
         """
         初始化Word图片AI分析器
 
         Args:
             api_key: 通义千问API密钥
             model_name: 模型名称
+            progress_callback: 进度回调函数，签名为 (current: int, total: int, message: str) -> None
         """
         dashscope.api_key = api_key
         self.model_name = model_name
         self.image_data = []
+        self.progress_callback = progress_callback
 
     def extract_images_from_word(self, word_path: str, output_dir: str = "extracted_word_images",
                                  min_width: int = 100, min_height: int = 100,
@@ -442,7 +444,12 @@ class WordImageAIAnalyzer:
         # 为每张图片处理结果（符合要求的进行AI分析，不符合的用占位符）
         for i, image_info in enumerate(all_images_info):
             image_id = image_info["image_id"]
-            print(f"处理进度: {i + 1}/{len(all_images_info)} - {image_id}")
+            progress_msg = f"处理进度: {i + 1}/{len(all_images_info)} - {image_id}"
+            print(progress_msg)
+            
+            # 触发进度回调
+            if self.progress_callback:
+                self.progress_callback(i + 1, len(all_images_info), progress_msg)
 
             # 检查图片是否符合尺寸要求
             if image_id in valid_image_ids:

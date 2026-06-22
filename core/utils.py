@@ -11,7 +11,6 @@ import pandas as pd
 import yaml
 from PyPDF2 import PdfReader
 from docx import Document
-from paddleocr import PaddleOCR
 
 from config.constants import TEMPLATE_PHRASES, CONTENT_FILTER_FUZZY, CONTENT_FILTER_EXACT
 
@@ -181,6 +180,7 @@ def get_target_pic(file, target_title):
 
 def perform_ocr_with_paddle(images):
     """使用 PaddleOCR 对图片进行文字识别"""
+    from paddleocr import PaddleOCR
     results = []
     ocr = PaddleOCR(use_angle_cls=True, lang="ch")
     for image_path in images:
